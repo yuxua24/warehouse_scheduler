@@ -3,19 +3,28 @@
   "robots": [
     {
       "robot_id": "R1",
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "status": "idle",
       "enabled": true
     },
     {
       "robot_id": "R2",
-      "position": [12, 0],
+      "position": [
+        12,
+        0
+      ],
       "status": "idle",
       "enabled": true
     },
     {
       "robot_id": "R3",
-      "position": [8, 10],
+      "position": [
+        8,
+        10
+      ],
       "status": "idle",
       "enabled": true
     }

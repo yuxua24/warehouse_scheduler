@@ -532,17 +532,31 @@ warehouse_scheduler/
 │   │   ├── graph_builder.py       # StateGraph 构建与编译
 │   │   ├── graph_nodes.py         # 10 个节点函数
 │   │   └── replanning_policy.py   # 3 级重试策略
-│   │   └── replanning_policy.py   # 3 级重试策略
-│   ├── api/
+│   ├── api/                 # FastAPI HTTP API
+│   │   ├── server.py              # FastAPI 服务器（调度/地图/运行时 CRUD + 前端服务）
 │   │   └── schemas.py             # Pydantic 输入/输出 Schema
 │   └── visualization/
 │       └── renderer.py            # matplotlib 路径渲染与动画
+├── frontend/                # React Web 前端
+│   ├── src/
+│   │   ├── App.jsx                # 主应用 + 状态管理
+│   │   ├── App.css                # 全局样式（暗色主题）
+│   │   ├── api.js                 # API 客户端
+│   │   ├── main.jsx               # React 入口
+│   │   └── components/
+│   │       ├── MapGrid.jsx        # Canvas 地图渲染（20×20 网格）
+│   │       ├── EditPanel.jsx      # 地图编辑工具
+│   │       ├── SchedulePanel.jsx  # 自然语言调度输入
+│   │       └── ResultsPanel.jsx   # 路径结果 + 时间步动画 + 指标
+│   ├── package.json
+│   ├── vite.config.js
+│   └── index.html
 ├── configs/
-│   ├── warehouse_map.json         # 10×10 固定地图
+│   ├── warehouse_map.json         # 20×20 固定地图
 │   ├── warehouse_runtime.json     # 3 台机器人初始位置
 │   └── api_config.json            # DeepSeek API 配置
 ├── tests/
-│   ├── unit/                      # 80 个单元测试
+│   ├── unit/                      # 82 个单元测试
 │   └── integration/               # 13 个集成测试
 ├── main.py                        # CLI 入口
 ├── requirements.txt
@@ -730,6 +744,63 @@ for tr in state.task_results:
 | `succeeded` | 全部任务规划成功，无冲突 |
 | `partially_succeeded` | 部分任务成功（其余因冲突/阻塞失败） |
 | `infeasible` | 所有任务均不可行（阻塞/不可达/通道封闭） |
+
+## Web UI & API
+
+项目提供完整的 FastAPI REST API 和 React Web 前端。
+
+### 启动 API 服务器
+
+```bash
+# 创建 venv 并安装依赖（如果尚未完成）
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt fastapi "uvicorn[standard]"
+
+# 构建前端（首次或修改前端后）
+cd frontend && npm install && npm run build && cd ..
+
+# 启动 FastAPI 服务器（包含前端静态文件服务）
+.venv/bin/python3 -c "
+import sys, os
+sys.path.insert(0, '.')
+if os.path.isdir('.venv_packages'): sys.path.insert(0, '.venv_packages')
+import uvicorn
+uvicorn.run('app.api.server:app', host='0.0.0.0', port=8000, reload=True)
+"
+```
+
+服务器启动后：
+- Web UI: http://localhost:8000
+- API 文档 (Swagger): http://localhost:8000/docs
+- API 文档 (ReDoc): http://localhost:8000/redoc
+
+### 前端开发模式
+
+```bash
+cd frontend
+npm install
+npm run dev     # 开发服务器，支持热重载，API 代理到 localhost:8000
+```
+
+前端开发服务器运行在 http://localhost:5173，API 请求自动代理到后端。
+
+### API 端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/health` | 健康检查 |
+| `POST` | `/api/schedule` | 执行调度（支持 NL 指令或结构化任务）|
+| `GET` | `/api/map` | 获取当前地图 |
+| `PUT` | `/api/map` | 更新地图并重新加载工作流 |
+| `GET` | `/api/runtime` | 获取运行时状态（机器人位置）|
+| `PUT` | `/api/runtime` | 更新运行时状态并重新加载工作流 |
+
+### 前端功能
+
+1. **地图编辑**：查看/编辑障碍物、入口格、设施格、机器人位置，支持拖拽连续绘制，可保存和重新加载
+2. **调度指令**：自然语言输入框，快速示例一键填充
+3. **路径可视化**：彩色路径轨迹、起点/终点标记、时间步滑块、播放/暂停动画
+4. **结果面板**：批次状态、路径详情、规划指标（成功率/耗时/A*调用/冲突数）、重规划历史
 
 ## 常用命令
 
