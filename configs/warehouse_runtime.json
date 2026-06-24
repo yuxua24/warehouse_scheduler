@@ -13,8 +13,8 @@
     {
       "robot_id": "R2",
       "position": [
-        12,
-        0
+        13,
+        6
       ],
       "status": "idle",
       "enabled": true
