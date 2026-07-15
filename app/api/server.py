@@ -36,6 +36,9 @@ from app.api.schemas import (
     MetricsOutput,
     ReplanHistoryOutput,
     TimedPositionOutput,
+    CronJobInput,
+    CronJobOutput,
+    CronJobToggle,
 )
 
 # ── App setup ───────────────────────────────────────────────────────────────
@@ -69,6 +72,8 @@ FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 # ── Workflow cache ───────────────────────────────────────────────────────────
 
 _workflow: Optional[Workflow] = None
+_cron_manager = None
+_pending_confirm = {}  # 确认存储: {session_key: {"action": "delete_all", "expires": timestamp}}
 
 
 def get_workflow(
@@ -223,6 +228,16 @@ def _start_weixin():
 
     handler.media_generator = make_media_generator(wf)
 
+    # 注入定时任务管理器（微信端支持定时指令）
+    global _cron_manager
+    if _cron_manager:
+        handler.cron_manager = _cron_manager
+
+    # 注入 LLM 意图分类器
+    wf_instance = get_workflow()
+    if wf_instance and wf_instance.parser:
+        handler.classify_fn = wf_instance.parser.classify_intent
+
     poller = MessagePoller(
         client=client,
         handler=handler.handle,
@@ -234,9 +249,30 @@ def _start_weixin():
     print(f"[weixin] Channel started (account_id={account_id[:20]}...)")
 
 
+def _start_cron():
+    """启动定时任务调度器。"""
+    global _cron_manager
+
+    try:
+        from app.scheduler import CronManager
+
+        def workflow_fn(instruction: str):
+            wf = get_workflow()
+            return wf.run(instruction)
+
+        _cron_manager = CronManager(
+            workflow_fn=workflow_fn,
+            jobs_path=str(CONFIGS_DIR / "cron_jobs.json"),
+        )
+        _cron_manager.start()
+    except Exception as e:
+        print(f"[cron] Failed to start: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
-    """FastAPI 启动事件：初始化微信通道。"""
+    """FastAPI 启动事件：初始化定时任务和微信通道。"""
+    _start_cron()     # 先启动 cron（微信通道需要引用它）
     _start_weixin()
 
 
@@ -387,6 +423,261 @@ async def schedule(request: SchedulingRequest):
     return _state_to_response(state)
 
 
+class ChatRequest(BaseModel):
+    message: str = Field(..., description="用户自然语言消息")
+
+
+@app.post("/api/chat")
+async def chat(request: ChatRequest):
+    """通用对话端点：LLM 意图分类 + 路由。
+
+    接收任意自然语言，LLM 判断意图后执行相应操作：
+    - schedule → 执行调度
+    - cron_list → 返回定时任务列表
+    - cron_create → 创建定时任务
+    - cron_delete → 删除定时任务
+    - cron_toggle → 切换定时任务状态
+    """
+    wf = get_workflow()
+    text = request.message.strip()
+    global _cron_manager
+
+    # Step 1: LLM 意图分类
+    intent_info = {"intent": "schedule"}
+    confirm_needed = None
+    if wf and wf.parser:
+        try:
+            intent_info = wf.parser.classify_intent(text)
+        except Exception as e:
+            intent_info = {"intent": "schedule"}
+
+    intent = intent_info.get("intent", "schedule")
+    reply_text = ""
+    schedule_result = None
+    image_url = None
+
+    # Step 2: 根据意图执行
+    if intent == "schedule":
+        try:
+            state = wf.run(text)
+            schedule_result = _state_to_response(state)
+            reply_text = _format_schedule_md(state)
+            image_url = _generate_path_image(state, text)
+        except Exception as e:
+            reply_text = f"❌ 调度失败: {e}"
+
+    elif intent == "cron_list":
+        global _cron_manager
+        if _cron_manager:
+            jobs = _cron_manager.list_jobs()
+            reply_text = _format_cron_list_md(jobs)
+        else:
+            reply_text = "❌ 定时任务功能未启用"
+
+    elif intent == "cron_create":
+        reply_text = _do_cron_create(intent_info)
+
+    elif intent == "cron_delete":
+        reply_text = _do_cron_delete(intent_info)
+
+    elif intent == "cron_delete_all":
+        reply_text, confirm_needed = _handle_delete_all(intent_info)
+
+    elif intent == "cron_toggle":
+        reply_text = _do_cron_toggle(intent_info)
+
+    else:
+        try:
+            state = wf.run(text)
+            schedule_result = _state_to_response(state)
+            reply_text = _format_schedule_md(state)
+        except Exception as e:
+            reply_text = f"❌ 无法理解: {e}"
+
+    return {
+        "intent": intent,
+        "reply": reply_text,
+        "schedule": schedule_result,
+        "cron_jobs": _cron_jobs_list(),
+        "confirm_needed": confirm_needed,
+        "image_url": image_url,
+    }
+
+
+def _generate_path_image(state, instruction: str) -> str:
+    """生成路径图片，返回可访问的 URL。"""
+    import os, matplotlib
+    matplotlib.use("Agg")
+    from app.visualization.renderer import render_paths
+    from app.domain.path_models import PathPlanResult
+    import matplotlib.pyplot as plt
+
+    wf = get_workflow()
+    if not wf or not wf.warehouse_map:
+        return None
+
+    paths = {}
+    for tr in state.task_results:
+        if tr.success and tr.path:
+            paths[tr.robot_id] = PathPlanResult(success=True, path=tr.path, cost=len(tr.path))
+
+    if not paths:
+        return None
+
+    os.makedirs("configs/media", exist_ok=True)
+    from datetime import datetime
+    ts = datetime.now().strftime("%H%M%S")
+    filename = f"{ts}_{state.request_id}.png"
+    filepath = f"configs/media/{filename}"
+
+    try:
+        render_paths(wf.warehouse_map, paths, title="Robot Paths", block=False)
+        plt.savefig(filepath, dpi=150, bbox_inches="tight")
+        plt.close()
+        return f"/media/{filename}"
+    except Exception as e:
+        print(f"[chat] Image generation failed: {e}")
+        return None
+
+
+@app.get("/media/{filename}")
+async def serve_media(filename: str):
+    """Serve generated media files."""
+    from fastapi.responses import FileResponse
+    filepath = CONFIGS_DIR.parent / "configs" / "media" / filename
+    if filepath.exists():
+        return FileResponse(str(filepath))
+    raise HTTPException(status_code=404)
+
+
+def _format_schedule_md(state) -> str:
+    """将调度结果格式化为 Markdown。"""
+    from app.channels.weixin.reply_formatter import format_schedule_result
+    location_names = {}
+    if state and state.task_results:
+        wf = get_workflow()
+        if wf and wf.warehouse_map:
+            for loc in wf.warehouse_map.locations:
+                location_names[loc.location_id] = loc.name
+    return format_schedule_result(state, location_names=location_names)
+
+
+def _format_cron_list_md(jobs) -> str:
+    """格式化定时任务列表。"""
+    from app.channels.weixin.message_handler import _cron_to_readable
+    if not jobs:
+        return "⏰ 暂无定时任务"
+    lines = ["⏰ **定时任务列表**", "━━━━━━━━━━━━━━━━"]
+    for j in jobs:
+        icon = "🔵" if j.enabled else "⚪"
+        time_str = _cron_to_readable(j.cron_expr)
+        status = "✅" if j.last_result == "succeeded" else ("❌" if j.last_result else "—")
+        lines.append(f"{icon} **{j.name}** · {time_str}")
+        lines.append(f"   {j.instruction[:50]}")
+    lines.append("━━━━━━━━━━━━━━━━")
+    lines.append(f"共 {len(jobs)} 个任务")
+    return "\n".join(lines)
+
+
+def _cron_jobs_list() -> list:
+    """获取当前定时任务列表（供前端使用）。"""
+    global _cron_manager
+    if not _cron_manager:
+        return []
+    return [
+        {
+            "job_id": j.job_id, "name": j.name,
+            "cron_expr": j.cron_expr, "instruction": j.instruction,
+            "enabled": j.enabled, "created_at": j.created_at,
+            "last_run_at": j.last_run_at, "last_result": j.last_result,
+        }
+        for j in _cron_manager.list_jobs()
+    ]
+
+
+def _do_cron_create(info: dict) -> str:
+    global _cron_manager
+    if not _cron_manager:
+        return "❌ 定时任务功能未启用"
+    name = info.get("cron_name", "定时任务")
+    expr = info.get("cron_expr", "")
+    inst = info.get("cron_instruction", "")
+    if not expr or not inst:
+        return "❌ 信息不完整，请提供时间描述和调度指令"
+    try:
+        job = _cron_manager.add_job(name, expr, inst)
+        from app.channels.weixin.message_handler import _cron_to_readable
+        return f"⏰ 已创建「**{job.name}**」· {_cron_to_readable(expr)}"
+    except Exception as e:
+        return f"❌ 创建失败: {e}"
+
+
+def _do_cron_delete(info: dict) -> str:
+    global _cron_manager
+    target = info.get("target_job_name", "")
+    if not target:
+        return "❌ 请指定任务名称"
+    for j in _cron_manager.list_jobs():
+        if target in j.name:
+            _cron_manager.remove_job(j.job_id)
+            return f"🗑️ 已删除「{j.name}」"
+    return f"❌ 未找到「{target}」"
+
+
+def _do_cron_toggle(info: dict) -> str:
+    global _cron_manager
+    target = info.get("target_job_name", "")
+    enable = "启用" in str(info)
+    if not target:
+        return "❌ 请指定任务名称"
+    for j in _cron_manager.list_jobs():
+        if target in j.name:
+            _cron_manager.toggle_job(j.job_id, enable)
+            a = "▶️ 已启用" if enable else "⏸️ 已禁用"
+            return f"{a}「{j.name}」"
+    return f"❌ 未找到「{target}」"
+
+
+def _handle_delete_all(info: dict) -> tuple:
+    """处理删除全部定时任务（含确认流程）。"""
+    global _cron_manager, _pending_confirm
+    if not _cron_manager:
+        return "❌ 定时任务功能未启用", None
+    jobs = _cron_manager.list_jobs()
+    if not jobs:
+        return "⏰ 当前没有定时任务可删除", None
+    if info.get("confirmed"):
+        count = len(jobs)
+        for j in list(jobs):
+            _cron_manager.remove_job(j.job_id)
+        return f"🗑️ 已删除全部 {count} 个定时任务", None
+    _pending_confirm["default"] = {"action": "delete_all", "expires": time.time() + 120}
+    return (
+        f"⚠️ **确定要删除全部 {len(jobs)} 个定时任务吗？**\n\n"
+        "回复「确认」执行删除，回复「取消」放弃操作。"
+    ), "delete_all"
+
+
+@app.post("/api/chat/confirm")
+async def confirm_action(request: ChatRequest):
+    """确认/取消危险操作。"""
+    global _pending_confirm, _cron_manager
+    text = request.message.strip()
+    pending = _pending_confirm.pop("default", None)
+    if not pending or time.time() > pending.get("expires", 0):
+        return {"reply": "⏰ 没有待确认的操作（可能已过期）", "confirm_needed": None}
+    if pending["action"] == "delete_all":
+        if text in ("确认", "是", "yes", "确定", "confirm", "ok", "好", "是的", "确认删除"):
+            jobs = _cron_manager.list_jobs()
+            count = len(jobs)
+            for j in list(jobs):
+                _cron_manager.remove_job(j.job_id)
+            return {"reply": f"🗑️ 已删除全部 {count} 个定时任务", "confirm_needed": None, "cron_jobs": _cron_jobs_list()}
+        else:
+            return {"reply": "✅ 已取消删除操作", "confirm_needed": None}
+    return {"reply": "未知操作", "confirm_needed": None}
+
+
 @app.get("/api/map")
 async def get_map():
     """Get the current warehouse map as JSON."""
@@ -448,6 +739,67 @@ async def update_runtime(data: Dict[str, Any]):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Cron job management ──────────────────────────────────────────────────
+
+
+@app.get("/api/cron", response_model=List[CronJobOutput])
+async def list_cron_jobs():
+    """列出所有定时任务。"""
+    global _cron_manager
+    if not _cron_manager:
+        return []
+    jobs = _cron_manager.list_jobs()
+    return [_job_to_output(j) for j in jobs]
+
+
+@app.post("/api/cron", response_model=CronJobOutput)
+async def create_cron_job(data: CronJobInput):
+    """创建定时任务。"""
+    global _cron_manager
+    if not _cron_manager:
+        raise HTTPException(status_code=500, detail="Cron manager not initialized")
+    job = _cron_manager.add_job(data.name, data.cron_expr, data.instruction)
+    return _job_to_output(job)
+
+
+@app.delete("/api/cron/{job_id}")
+async def delete_cron_job(job_id: str):
+    """删除定时任务。"""
+    global _cron_manager
+    if not _cron_manager:
+        raise HTTPException(status_code=500, detail="Cron manager not initialized")
+    ok = _cron_manager.remove_job(job_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return {"status": "ok"}
+
+
+@app.put("/api/cron/{job_id}")
+async def toggle_cron_job(job_id: str, data: CronJobToggle):
+    """启用/禁用定时任务。"""
+    global _cron_manager
+    if not _cron_manager:
+        raise HTTPException(status_code=500, detail="Cron manager not initialized")
+    job = _cron_manager.toggle_job(job_id, data.enabled)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return _job_to_output(job)
+
+
+def _job_to_output(job) -> CronJobOutput:
+    """CronJob → CronJobOutput。"""
+    return CronJobOutput(
+        job_id=job.job_id,
+        name=job.name,
+        cron_expr=job.cron_expr,
+        instruction=job.instruction,
+        enabled=job.enabled,
+        created_at=job.created_at,
+        last_run_at=job.last_run_at,
+        last_result=job.last_result,
+    )
 
 
 # ── Static file serving (React frontend) ────────────────────────────────────

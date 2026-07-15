@@ -320,3 +320,122 @@ class TaskParserAgent:
             batch.runtime_constraints.append(c_raw)
 
         return batch
+
+    # ── 意图分类 ──────────────────────────────────────────────────────────
+
+    def classify_intent(self, text: str) -> dict:
+        """对用户输入做意图分类：调度指令 vs 定时任务管理。
+
+        通过 DeepSeek Function Calling 分析用户意图，
+        返回结构化意图对象供 message_handler 路由。
+
+        Returns:
+            {
+                "intent": "schedule" | "cron_create" | "cron_list"
+                        | "cron_delete" | "cron_toggle" | "unknown",
+                ... (intent-specific params)
+            }
+        """
+        INTENT_TOOL = {
+            "type": "function",
+            "function": {
+                "name": "classify_intent",
+                "description": (
+                    "分析用户输入，判断是调度机器人执行任务，"
+                    "还是管理定时任务（创建/查看/删除/启用/禁用）。"
+                    "注意：\"查看定时任务\"、\"输出当前定时任务\"、"
+                    "\"有哪些定时任务\" 等都是 cron_list 意图。"
+                    "\"每天晚上十点让机器人充电\" 这种含时间描述的调度"
+                    "是 cron_create 意图。"
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "intent": {
+                            "type": "string",
+                            "enum": [
+                                "schedule",
+                                "cron_create",
+                                "cron_list",
+                                "cron_delete",
+                                "cron_delete_all",
+                                "cron_toggle",
+                                "unknown",
+                            ],
+                            "description": (
+                                "用户意图：schedule=调度机器人执行任务；"
+                                "cron_create=创建定时任务（含时间描述）；"
+                                "cron_list=查看/列出定时任务；"
+                                "cron_delete=删除单个定时任务；"
+                                "cron_delete_all=删除全部定时任务（含确认/取消）；"
+                                "cron_toggle=启用/禁用定时任务；"
+                                "unknown=无法判断"
+                            ),
+                        },
+                        "schedule_instruction": {
+                            "type": "string",
+                            "description": "如果是 schedule 意图，提取纯调度指令部分",
+                        },
+                        "cron_name": {
+                            "type": "string",
+                            "description": "定时任务名称（cron_create/delete/toggle 时使用）",
+                        },
+                        "cron_expr": {
+                            "type": "string",
+                            "description": "cron 表达式，如 0 22 * * *（cron_create 时从时间描述推断）",
+                        },
+                        "cron_instruction": {
+                            "type": "string",
+                            "description": "定时执行的纯调度指令（cron_create 时使用）",
+                        },
+                        "target_job_name": {
+                            "type": "string",
+                            "description": "要操作的任务名称（cron_delete/cron_toggle 时使用）",
+                        },
+                    },
+                    "required": ["intent"],
+                },
+            },
+        }
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "你是一个仓储调度助手的意图识别器。"
+                            "分析用户输入，判断意图类型。\n"
+                            "关键规则：\n"
+                            "1. 含时间描述的调度请求（如\"每晚十点\"、\"每天8点\"）是 cron_create\n"
+                            "2. \"输出定时任务\"、\"查看定时任务\"、\"定时任务列表\"等是 cron_list\n"
+                            "3. \"删除全部定时任务\"、\"删除所有\"、\"清空定时\"是 cron_delete_all\n"
+                            "4. \"确认\"、\"是的\"、\"确定\" 在上一轮是危险操作确认时，填 confirmed=true\n"
+                            "5. \"取消\"、\"不\"、\"算了\" 在确认场景填 confirmed=false\n"
+                            "6. \"删除XX\"（单个名称）是 cron_delete\n"
+                            "7. \"禁用XX\"、\"启用XX\"等是 cron_toggle\n"
+                            "8. 纯机器人调度指令（如\"R1去装卸区\"）是 schedule\n"
+                        ),
+                    },
+                    {"role": "user", "content": text},
+                ],
+                tools=[INTENT_TOOL],
+                tool_choice={
+                    "type": "function",
+                    "function": {"name": "classify_intent"},
+                },
+                temperature=0.1,
+                max_tokens=500,
+            )
+        except Exception as e:
+            return {"intent": "schedule", "schedule_instruction": text}
+
+        message = response.choices[0].message
+        if not message.tool_calls:
+            return {"intent": "schedule", "schedule_instruction": text}
+
+        try:
+            return json.loads(message.tool_calls[0].function.arguments)
+        except json.JSONDecodeError:
+            return {"intent": "schedule", "schedule_instruction": text}

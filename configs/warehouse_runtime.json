@@ -4,8 +4,8 @@
     {
       "robot_id": "R1",
       "position": [
-        0,
-        0
+        16,
+        18
       ],
       "status": "idle",
       "enabled": true

@@ -3,6 +3,8 @@ import MapGrid from './components/MapGrid'
 import EditPanel from './components/EditPanel'
 import SchedulePanel from './components/SchedulePanel'
 import ResultsPanel from './components/ResultsPanel'
+import CronPanel from './components/CronPanel'
+import ChatPanel from './components/ChatPanel'
 import { fetchMap, updateMap, updateRuntime } from './api'
 
 const ROBOT_COLORS = ['#e74c3c', '#2ecc71', '#3498db', '#f39c12', '#9b59b6']
@@ -29,6 +31,8 @@ export default function App() {
 
   // Path overlay data (derived from scheduleResult)
   const [paths, setPaths] = useState({})
+  const [cronJobs, setCronJobs] = useState([])
+  const [resultHistory, setResultHistory] = useState([])
 
   // Load initial data
   useEffect(() => {
@@ -74,7 +78,6 @@ export default function App() {
       setPaths(newPaths)
       setMaxTimeStep(maxT)
       setTimeStep(0)
-      setActiveTab('results')
     }
   }, [scheduleResult])
 
@@ -98,6 +101,23 @@ export default function App() {
 
   const handleScheduleResult = useCallback((result) => {
     setScheduleResult(result)
+  }, [])
+
+  const handleChatResult = useCallback((result, instruction) => {
+    // 存入结果历史（不跳转标签）
+    if (result) {
+      setScheduleResult(result)
+      setResultHistory(prev => [{
+        instruction: instruction || result.original_instruction || '调度结果',
+        result,
+        time: new Date(),
+        id: result.request_id || Date.now().toString(),
+      }, ...prev].slice(0, 20))  // 最多保留 20 条
+    }
+  }, [])
+
+  const handleCronUpdate = useCallback((jobs) => {
+    setCronJobs(jobs || [])
   }, [])
 
   const handleMapUpdate = useCallback((updatedMap) => {
@@ -146,27 +166,35 @@ export default function App() {
 
         <div className="side-panel">
           <div className="tab-bar">
-            <button
-              className={`tab ${activeTab === 'edit' ? 'active' : ''}`}
-              onClick={() => setActiveTab('edit')}
-            >
-              🗺️ 地图编辑
+            <button className={`tab ${activeTab === 'edit' ? 'active' : ''}`} onClick={() => setActiveTab('edit')}>
+              🗺️ 地图
             </button>
-            <button
-              className={`tab ${activeTab === 'schedule' ? 'active' : ''}`}
-              onClick={() => setActiveTab('schedule')}
-            >
-              📋 调度指令
+            <button className={`tab ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => setActiveTab('chat')}>
+              💬 对话
             </button>
-            <button
-              className={`tab ${activeTab === 'results' ? 'active' : ''}`}
-              onClick={() => setActiveTab('results')}
-            >
+            <button className={`tab ${activeTab === 'schedule' ? 'active' : ''}`} onClick={() => setActiveTab('schedule')}>
+              📋 指令
+            </button>
+            <button className={`tab ${activeTab === 'results' ? 'active' : ''}`} onClick={() => setActiveTab('results')}>
               📊 结果
+            </button>
+            <button className={`tab ${activeTab === 'cron' ? 'active' : ''}`} onClick={() => setActiveTab('cron')}>
+              ⏰ 定时
             </button>
           </div>
 
           <div className="panel-content">
+            {activeTab === 'chat' && (
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
+                <div style={{ flex: 1, overflow: 'auto' }}>
+                  <ChatPanel
+                    onScheduleResult={handleChatResult}
+                    cronJobs={cronJobs}
+                    onCronChange={handleCronUpdate}
+                  />
+                </div>
+              </div>
+            )}
             {activeTab === 'edit' && (
               <EditPanel
                 editMode={editMode}
@@ -214,7 +242,12 @@ export default function App() {
                 setTimeStep={setTimeStep}
                 animating={animating}
                 setAnimating={setAnimating}
+                history={resultHistory}
+                onSelectResult={setScheduleResult}
               />
+            )}
+            {activeTab === 'cron' && (
+              <CronPanel />
             )}
           </div>
         </div>

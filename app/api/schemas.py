@@ -83,3 +83,30 @@ class SchedulingResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     errors: List[str] = Field(default_factory=list)
     original_instruction: str = ""
+
+
+# ── Cron job schemas ──────────────────────────────────────────────────────
+
+
+class CronJobInput(BaseModel):
+    """创建定时任务的请求体。"""
+    name: str = Field(..., description="任务名称，如「每晚充电」")
+    cron_expr: str = Field(..., description="Cron 表达式，如 0 22 * * *")
+    instruction: str = Field(..., description="调度指令")
+
+
+class CronJobOutput(BaseModel):
+    """定时任务响应体。"""
+    job_id: str
+    name: str
+    cron_expr: str
+    instruction: str
+    enabled: bool
+    created_at: str = ""
+    last_run_at: str = ""
+    last_result: str = ""
+
+
+class CronJobToggle(BaseModel):
+    """启用/禁用请求体。"""
+    enabled: bool

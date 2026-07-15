@@ -57,3 +57,67 @@ export async function scheduleStructured(tasks, constraints = [], maxTimestep = 
   }
   return res.json()
 }
+
+// ── Cron job API ────────────────────────────────────────────────────────
+
+export async function fetchCronJobs() {
+  const res = await fetch(`${API_BASE}/cron`)
+  if (!res.ok) throw new Error(`Failed to fetch cron jobs: ${res.status}`)
+  return res.json()
+}
+
+export async function createCronJob({ name, cron_expr, instruction }) {
+  const res = await fetch(`${API_BASE}/cron`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, cron_expr, instruction }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || `Failed: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function deleteCronJob(jobId) {
+  const res = await fetch(`${API_BASE}/cron/${jobId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Failed to delete: ${res.status}`)
+  return res.json()
+}
+
+export async function toggleCronJob(jobId, enabled) {
+  const res = await fetch(`${API_BASE}/cron/${jobId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ enabled }),
+  })
+  if (!res.ok) throw new Error(`Failed to toggle: ${res.status}`)
+  return res.json()
+}
+
+// ── Chat API ────────────────────────────────────────────────────────────
+
+export async function sendChat(message) {
+  const res = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  })
+  if (!res.ok) {
+    const err = await res.json()
+    throw new Error(err.detail || `Chat failed: ${res.status}`)
+  }
+  return res.json()
+}
+
+// ── Confirm API ─────────────────────────────────────────────────────────
+
+export async function confirmChat(confirmed) {
+  const res = await fetch(`${API_BASE}/chat/confirm`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: confirmed ? '确认' : '取消' }),
+  })
+  if (!res.ok) throw new Error(`Confirm failed: ${res.status}`)
+  return res.json()
+}
