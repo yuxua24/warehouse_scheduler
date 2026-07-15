@@ -96,6 +96,7 @@ class MessageHandler:
         self.media_generator = None  # 由外部设置
         self.cron_manager = None     # 由外部设置
         self.classify_fn = None      # fn(text) -> dict, LLM 意图分类
+        self.answer_fn = None        # fn(text) -> str, LLM 问答
 
     async def handle(self, msg: Dict[str, Any]) -> None:
         """处理一条 iLink 消息。
@@ -228,13 +229,27 @@ class MessageHandler:
         elif intent == "cron_toggle":
             reply = self._toggle_cron_from_intent(intent_info)
 
+        elif intent == "general_qa":
+            reply = await self._answer_question(text)
+
+        elif intent == "show_map":
+            reply = "🗺️ 当前地图已渲染"
+
+        elif intent == "cargo_done":
+            reply = self._handle_cargo_done_wx()
+
+        elif intent == "robot_move":
+            reply = self._handle_robot_move_wx(intent_info)
+
+        elif intent == "map_modify":
+            reply = self._handle_map_modify_wx(intent_info)
+
         else:
-            # unknown → 尝试调度
+            # unknown → 尝试 LLM 问答兜底
             try:
-                state = self.workflow_fn(text)
-                reply = format_schedule_result(state, location_names=self.location_names)
-            except Exception as e:
-                reply = format_error(f"无法理解: {e}")
+                reply = await self._answer_question(text)
+            except Exception:
+                reply = "⚠️ 无法理解，请尝试：调度指令 / 查看定时任务 / 询问仓库信息"
         await self._send_reply(user_id, reply)
         print(f"[weixin] Reply sent")
 
@@ -452,6 +467,67 @@ class MessageHandler:
             f"⚠️ **确定要删除全部 {len(jobs)} 个定时任务吗？**\n"
             "回复「确认」执行删除，回复「取消」放弃操作。"
         )
+
+    def _handle_cargo_done_wx(self) -> str:
+        """微信端卸货确认。"""
+        from app.services.robot_selector import get_waiting_robots, get_busy_robots, mark_robot_idle
+        results = []
+        for r in get_waiting_robots():
+            mark_robot_idle(r["robot_id"])
+            results.append(f"✅ {r['robot_id']} 卸货完成")
+        for r in get_busy_robots():
+            mark_robot_idle(r["robot_id"])
+            results.append(f"✅ {r['robot_id']} 卸货完成")
+        return "\n".join(results) if results else "⚠️ 没有正在执行任务的机器人"
+
+    def _handle_robot_move_wx(self, info: dict) -> str:
+        """微信端移动机器人。"""
+        import re, json
+        from pathlib import Path
+        rid = info.get("robot_id", "").strip().upper()
+        rid = re.sub(r"机器人\s*", "R", rid)
+        if not rid.startswith("R"): rid = "R" + rid
+        pos = info.get("target_position", None)
+        if not rid or not pos or len(pos) != 2: return "❌ 请指定机器人ID和坐标"
+        x, y = int(pos[0]), int(pos[1])
+        rp = Path("configs/warehouse_runtime.json")
+        try:
+            runtime = json.loads(rp.read_text(encoding="utf-8"))
+            for r in runtime.get("robots", []):
+                if r["robot_id"] == rid:
+                    r["position"] = [x, y]
+                    rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+                    return f"🤖 {rid} 已移动到 ({x},{y})"
+            return f"❌ 未找到{rid}"
+        except Exception as e: return f"❌ {e}"
+
+    def _handle_map_modify_wx(self, info: dict) -> str:
+        """微信端地图修改。"""
+        import json
+        from pathlib import Path
+        action = info.get("map_action", ""); target = info.get("map_target", "")
+        if action == "block_corridor" and target:
+            rp = Path("configs/warehouse_runtime.json")
+            runtime = json.loads(rp.read_text(encoding="utf-8"))
+            runtime.setdefault("active_blockages", []).append({
+                "blockage_id": f"wx_{target}", "target_type": "corridor", "target_id": target,
+                "start_time": 0, "reason": "微信指令"
+            })
+            rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+            return f"🔒 已封闭「{target}」"
+        return "❌ 不支持的操作"
+
+    async def _answer_question(self, text: str) -> str:
+        """调用 LLM 回答问题。"""
+        if self.answer_fn:
+            try:
+                result = self.answer_fn(text)
+                if hasattr(result, '__await__'):
+                    return await result
+                return result
+            except Exception as e:
+                return f"❌ 回答失败: {e}"
+        return "⚠️ 问答功能未配置"
 
     async def _send_reply(self, user_id: str, text: str) -> None:
         """发送回复消息。"""

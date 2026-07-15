@@ -234,10 +234,14 @@ def _start_weixin():
     if _cron_manager:
         handler.cron_manager = _cron_manager
 
-    # 注入 LLM 意图分类器
+    # 注入 LLM 功能
     wf_instance = get_workflow()
     if wf_instance and wf_instance.parser:
         handler.classify_fn = wf_instance.parser.classify_intent
+        # 问答回调
+        async def answer_fn(text):
+            return await _answer_question(text)
+        handler.answer_fn = answer_fn
 
     poller = MessagePoller(
         client=client,
