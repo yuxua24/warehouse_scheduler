@@ -10,10 +10,16 @@
 """
 
 import base64
+import hashlib
 import json
 import os
 import uuid
+import secrets
 from typing import Any, Dict, List, Optional
+from pathlib import Path
+from urllib.parse import quote
+
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 import aiohttp
 
@@ -243,6 +249,177 @@ class ILinkClient:
             raw = await resp.text()
             return json.loads(raw)
 
+    # ── 媒体发送（对照 Hermes _send_file） ────────────────────────────
+
+    async def send_image(
+        self,
+        to_user: str,
+        file_path: str,
+        context_token: str = "",
+    ) -> Dict[str, Any]:
+        """发送图片/GIF 到微信。
+
+        完整流程（对照 Hermes _send_file）:
+        1. 读取文件，生成 filekey + aes_key
+        2. POST getuploadurl (带 rawsize, rawfilemd5, filesize, aeskey)
+        3. AES-ECB 加密文件
+        4. POST 密文到 CDN
+        5. POST sendmessage (带 encrypt_query_param + aes_key)
+        """
+        plaintext = Path(file_path).read_bytes()
+
+        filekey = secrets.token_hex(16)
+        aes_key = secrets.token_bytes(16)
+        rawsize = len(plaintext)
+        rawfilemd5 = hashlib.md5(plaintext).hexdigest()
+        filesize = _aes_padded_size(rawsize)
+        aeskey_hex = aes_key.hex()
+
+        # 1. 获取上传 URL
+        upload_resp = await self._get_upload_url(
+            to_user_id=to_user,
+            filekey=filekey,
+            rawsize=rawsize,
+            rawfilemd5=rawfilemd5,
+            filesize=filesize,
+            aeskey_hex=aeskey_hex,
+        )
+        print(f"[weixin] getuploadurl response: {json.dumps(upload_resp, ensure_ascii=False)}")
+
+        # 2. 确定上传 URL
+        upload_full_url = str(upload_resp.get("upload_full_url") or "")
+        upload_param = str(upload_resp.get("upload_param") or "")
+        if upload_full_url:
+            upload_url = upload_full_url
+        elif upload_param:
+            upload_url = _cdn_upload_url(self.cdn_base_url, upload_param, filekey)
+        else:
+            raise ILinkError(-1, "getuploadurl returned no URL")
+
+        # 3. AES-ECB 加密
+        ciphertext = _aes128_ecb_encrypt(plaintext, aes_key)
+
+        # 4. 上传密文到 CDN
+        encrypted_query_param = await self._upload_ciphertext(upload_url, ciphertext)
+        print(f"[weixin] CDN upload OK, encrypt_query_param={encrypted_query_param[:30]}...")
+
+        # 5. 构造 media item 并发送
+        aes_key_for_api = base64.b64encode(
+            aes_key.hex().encode("ascii")
+        ).decode("ascii")
+
+        return await self._send_media_msg(
+            to_user=to_user,
+            encrypt_query_param=encrypted_query_param,
+            aes_key_for_api=aes_key_for_api,
+            ciphertext_size=len(ciphertext),
+            plaintext_size=rawsize,
+            filename=Path(file_path).name,
+            rawfilemd5=rawfilemd5,
+            context_token=context_token,
+        )
+
+    # ── 媒体内部 ────────────────────────────────────────────────────────
+
+    async def _get_upload_url(
+        self,
+        to_user_id: str,
+        filekey: str,
+        rawsize: int,
+        rawfilemd5: str,
+        filesize: int,
+        aeskey_hex: str,
+    ) -> Dict[str, Any]:
+        """获取 CDN 上传 URL（对照 Hermes _get_upload_url）。"""
+        await self.ensure_sessions()
+
+        body = {
+            "filekey": filekey,
+            "media_type": 1,  # image
+            "to_user_id": to_user_id,
+            "rawsize": rawsize,
+            "rawfilemd5": rawfilemd5,
+            "filesize": filesize,
+            "no_need_thumb": True,
+            "aeskey": aeskey_hex,
+        }
+
+        async with self._send_session.post(
+            f"{self.base_url}/ilink/bot/getuploadurl",
+            json=body,
+            headers=self._common_headers(),
+        ) as resp:
+            raw = await resp.text()
+            return json.loads(raw)
+
+    async def _upload_ciphertext(
+        self, upload_url: str, ciphertext: bytes
+    ) -> str:
+        """上传密文到微信 CDN，返回 encrypt_query_param。
+
+        关键：encrypt_query_param 在响应头 X-Encrypted-Param 中！
+        对照 Hermes _upload_ciphertext (L551-576)。
+        """
+        async with self._send_session.post(
+            upload_url,
+            data=ciphertext,
+            headers={"Content-Type": "application/octet-stream"},
+        ) as resp:
+            if resp.status == 200:
+                encrypted_param = resp.headers.get("X-Encrypted-Param")
+                if encrypted_param:
+                    await resp.read()
+                    return encrypted_param
+                raw = await resp.text()
+                raise ILinkError(-1, f"CDN upload missing X-Encrypted-Param header: {raw[:200]}")
+            raw = await resp.text()
+            raise ILinkError(-1, f"CDN upload HTTP {resp.status}: {raw[:200]}")
+
+    async def _send_media_msg(
+        self,
+        to_user: str,
+        encrypt_query_param: str,
+        aes_key_for_api: str,
+        ciphertext_size: int,
+        plaintext_size: int,
+        filename: str,
+        rawfilemd5: str,
+        context_token: str = "",
+    ) -> Dict[str, Any]:
+        """发送图片消息（对照 Hermes _outbound_media_builder image_item 结构）。"""
+        await self.ensure_sessions()
+
+        body = {
+            "msg": {
+                "from_user_id": "",
+                "to_user_id": to_user,
+                "client_id": _make_client_id("whimg"),
+                "message_type": 2,
+                "message_state": 2,
+                "item_list": [{
+                    "type": 2,  # ITEM_IMAGE
+                    "image_item": {
+                        "media": {
+                            "encrypt_query_param": encrypt_query_param,
+                            "aes_key": aes_key_for_api,
+                            "encrypt_type": 1,
+                        },
+                        "mid_size": ciphertext_size,
+                    },
+                }],
+                "context_token": context_token,
+            },
+            "base_info": {"channel_version": CLIENT_VERSION},
+        }
+
+        async with self._send_session.post(
+            f"{self.base_url}/ilink/bot/sendmessage",
+            json=body,
+            headers=self._common_headers(),
+        ) as resp:
+            raw = await resp.text()
+            return json.loads(raw)
+
     # ── 内部 ─────────────────────────────────────────────────────────────
 
     def _check_errcode(self, data: Dict[str, Any]) -> None:
@@ -259,3 +436,33 @@ class ILinkClient:
             errcode=errcode,
             errmsg=data.get("errmsg", data.get("message", "unknown error")),
         )
+
+
+# ── AES 加密工具（对照 Hermes _aes128_ecb_encrypt + _pkcs7_pad）───────
+
+
+def _pkcs7_pad(data: bytes, block_size: int = 16) -> bytes:
+    """PKCS7 填充。"""
+    pad_len = block_size - len(data) % block_size
+    return data + bytes([pad_len] * pad_len)
+
+
+def _aes128_ecb_encrypt(plaintext: bytes, key: bytes) -> bytes:
+    """AES-128-ECB 加密 + PKCS7 填充。"""
+    cipher = Cipher(algorithms.AES(key), modes.ECB())
+    encryptor = cipher.encryptor()
+    return encryptor.update(_pkcs7_pad(plaintext)) + encryptor.finalize()
+
+
+def _aes_padded_size(size: int) -> int:
+    """计算 PKCS7 填充后的加密尺寸。"""
+    return ((size + 1 + 15) // 16) * 16
+
+
+def _cdn_upload_url(cdn_base_url: str, upload_param: str, filekey: str) -> str:
+    """构造 CDN 上传 URL。"""
+    return (
+        f"{cdn_base_url.rstrip('/')}/upload"
+        f"?encrypted_query_param={quote(upload_param, safe='')}"
+        f"&filekey={quote(filekey, safe='')}"
+    )

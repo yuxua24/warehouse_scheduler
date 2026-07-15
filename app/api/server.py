@@ -180,6 +180,49 @@ def _start_weixin():
         location_names=location_names,
     )
 
+    # 创建媒体生成器（生成静态路径图）
+    def make_media_generator(wf):
+        from app.visualization.renderer import render_paths
+        from app.domain.path_models import PathPlanResult
+        import matplotlib
+        matplotlib.use("Agg")
+        import os
+
+        def generate(state):
+            """生成静态 PNG 路径图，返回 (png_path, None)。"""
+            warehouse_map = wf.warehouse_map
+            if not warehouse_map:
+                return None, None
+
+            paths = {}
+            for tr in state.task_results:
+                if tr.success and tr.path:
+                    paths[tr.robot_id] = PathPlanResult(
+                        success=True, path=tr.path, cost=len(tr.path),
+                    )
+
+            if not paths:
+                return None, None
+
+            os.makedirs("configs/media", exist_ok=True)
+            from datetime import datetime
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            png_path = f"configs/media/{ts}_{state.request_id}.png"
+            try:
+                render_paths(warehouse_map, paths, title="Robot Paths", block=False)
+                import matplotlib.pyplot as plt
+                plt.savefig(png_path, dpi=200, bbox_inches="tight")
+                plt.close()
+            except Exception as e:
+                print(f"[weixin] Failed to save map: {e}")
+                png_path = None
+
+            return png_path, None
+
+        return generate
+
+    handler.media_generator = make_media_generator(wf)
+
     poller = MessagePoller(
         client=client,
         handler=handler.handle,

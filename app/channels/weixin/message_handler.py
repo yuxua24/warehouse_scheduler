@@ -7,6 +7,8 @@ import hashlib
 import logging
 import time
 import traceback
+import tempfile
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 from app.channels.weixin.ilink_client import ILinkClient
@@ -16,6 +18,9 @@ from app.channels.weixin.reply_formatter import (
     format_error,
     HELP_TEXT,
 )
+
+# 媒体文件临时目录
+MEDIA_TMP_DIR = Path(tempfile.gettempdir()) / "warehouse_weixin_media"
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +93,7 @@ class MessageHandler:
         self.allowed_users: Set[str] = set(config.get("allowed_users", []))
         self.deduplicator = MessageDeduplicator(ttl=DEDUP_TTL_SECONDS)
         self.location_names = location_names or {}
+        self.media_generator = None  # 由外部设置
 
     async def handle(self, msg: Dict[str, Any]) -> None:
         """处理一条 iLink 消息。
@@ -192,6 +198,20 @@ class MessageHandler:
         print(f"[weixin] Sending reply to {user_id}...")
         await self._send_reply(user_id, reply)
         print(f"[weixin] Reply sent")
+
+        # 10. 生成并发送静态路径图
+        if self.media_generator:
+            try:
+                png_path, _gif_path = self.media_generator(state)
+                if png_path and Path(png_path).exists():
+                    await self.client.send_image(
+                        to_user=user_id,
+                        file_path=str(png_path),
+                        context_token=context_token,
+                    )
+            except Exception as e:
+                print(f"[weixin] Media send failed: {e}")
+                import traceback; traceback.print_exc()
 
     async def _send_reply(self, user_id: str, text: str) -> None:
         """发送回复消息。"""
