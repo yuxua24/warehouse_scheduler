@@ -22,6 +22,12 @@ node_modules/
 # Sensitive configuration (contains real API keys)
 configs/api_config.json
 
+# WeChat (iLink Bot) sensitive data
+configs/weixin_account.json
+configs/weixin_config.json
+configs/weixin_sync_buf.txt
+configs/weixin_context_tokens.json
+
 # matplotlib cache
 .matplotlib/
 

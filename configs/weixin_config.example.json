@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "account_id": "",
+  "token": "",
+  "base_url": "https://ilinkai.weixin.qq.com",
+  "cdn_base_url": "https://novac2c.cdn.weixin.qq.com/c2c",
+  "dm_policy": "allowlist",
+  "group_policy": "disabled",
+  "allowed_users": [],
+  "data_dir": "configs"
+}

@@ -2,6 +2,7 @@
 
 Provides REST API for scheduling, map management, and runtime state.
 Serves the React frontend in production.
+Integrates WeChat messaging channel via iLink Bot API.
 """
 
 import json
@@ -10,6 +11,7 @@ import sys
 import uuid
 import time
 import copy
+import asyncio
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
@@ -60,6 +62,8 @@ CONFIGS_DIR = BASE_DIR / "configs"
 DEFAULT_MAP_PATH = CONFIGS_DIR / "warehouse_map.json"
 DEFAULT_RUNTIME_PATH = CONFIGS_DIR / "warehouse_runtime.json"
 API_CONFIG_PATH = CONFIGS_DIR / "api_config.json"
+WEIXIN_CONFIG_PATH = CONFIGS_DIR / "weixin_config.json"
+WEIXIN_ACCOUNT_PATH = CONFIGS_DIR / "weixin_account.json"
 FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 
 # ── Workflow cache ───────────────────────────────────────────────────────────
@@ -92,6 +96,117 @@ def reset_workflow():
     """Reset workflow cache (after map/runtime changes)."""
     global _workflow
     _workflow = None
+
+
+# ── WeChat (iLink Bot API) integration ──────────────────────────────────────
+
+_weixin_task: asyncio.Task = None
+
+
+def _start_weixin():
+    """启动微信通道（作为后台 asyncio 任务）。"""
+    global _weixin_task
+
+    if not WEIXIN_CONFIG_PATH.exists():
+        print("[weixin] Config file not found, skipping")
+        return
+
+    try:
+        config = json.loads(WEIXIN_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[weixin] Failed to read config: {e}")
+        return
+
+    if not config.get("enabled"):
+        print("[weixin] Disabled in config")
+        return
+
+    # 加载账户凭证
+    if not WEIXIN_ACCOUNT_PATH.exists():
+        print("[weixin] Account file not found. Run: python scripts/weixin_login.py")
+        return
+
+    try:
+        account = json.loads(WEIXIN_ACCOUNT_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[weixin] Failed to read account file: {e}")
+        return
+
+    token = account.get("token", "")
+    account_id = account.get("account_id", "")
+    if not token or not account_id:
+        print("[weixin] Account missing token or account_id")
+        return
+
+    # 动态导入（避免未安装 aiohttp 时阻止启动）
+    try:
+        from app.channels.weixin.ilink_client import ILinkClient
+        from app.channels.weixin.context_store import ContextStore
+        from app.channels.weixin.message_handler import MessageHandler
+        from app.channels.weixin.poller import MessagePoller
+    except ImportError as e:
+        print(f"[weixin] Dependencies missing: {e}")
+        return
+
+    base_url = account.get("base_url", "https://ilinkai.weixin.qq.com")
+    data_dir = config.get("data_dir", "configs")
+
+    # 初始化组件
+    client = ILinkClient(
+        token=token,
+        account_id=account_id,
+        base_url=base_url,
+    )
+
+    context_store = ContextStore(data_dir=data_dir)
+
+    # Workflow 的 lambda：延迟获取（避免循环依赖）
+    def workflow_fn(instruction: str):
+        wf = get_workflow()
+        return wf.run(instruction)
+
+    # 构建位置名称映射（location_id → 中文名）
+    location_names = {}
+    wf = get_workflow()
+    if wf.warehouse_map:
+        for loc in wf.warehouse_map.locations:
+            location_names[loc.location_id] = loc.name
+
+    handler = MessageHandler(
+        workflow_fn=workflow_fn,
+        client=client,
+        context_store=context_store,
+        config=config,
+        location_names=location_names,
+    )
+
+    poller = MessagePoller(
+        client=client,
+        handler=handler.handle,
+        context_store=context_store,
+    )
+
+    # 启动长轮询（后台任务）
+    _weixin_task = poller.start()
+    print(f"[weixin] Channel started (account_id={account_id[:20]}...)")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """FastAPI 启动事件：初始化微信通道。"""
+    _start_weixin()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """FastAPI 关闭事件：停止微信通道。"""
+    global _weixin_task
+    if _weixin_task and not _weixin_task.done():
+        _weixin_task.cancel()
+        try:
+            await _weixin_task
+        except asyncio.CancelledError:
+            pass
 
 
 # ── Helper: convert PlanningState → SchedulingResponse ──────────────────────
