@@ -184,17 +184,15 @@ export default function App() {
           </div>
 
           <div className="panel-content">
-            {activeTab === 'chat' && (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
-                <div style={{ flex: 1, overflow: 'auto' }}>
-                  <ChatPanel
-                    onScheduleResult={handleChatResult}
-                    cronJobs={cronJobs}
-                    onCronChange={handleCronUpdate}
-                  />
-                </div>
+            <div style={{ display: activeTab === 'chat' ? 'flex' : 'none', flexDirection: 'column', height: '100%', gap: 10 }}>
+              <div style={{ flex: 1, overflow: 'auto' }}>
+                <ChatPanel
+                  onScheduleResult={handleChatResult}
+                  cronJobs={cronJobs}
+                  onCronChange={handleCronUpdate}
+                />
               </div>
-            )}
+            </div>
             {activeTab === 'edit' && (
               <EditPanel
                 editMode={editMode}
