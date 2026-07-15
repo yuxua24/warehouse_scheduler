@@ -2,7 +2,7 @@
 
 将自然语言仓储任务转换为多机器人无碰撞时空路径的智能调度系统。
 
-**当前状态：** MVP 已实现，支持自然语言（DeepSeek）和结构化 JSON 两种输入方式，93 个测试全部通过。
+**当前状态：** MVP 已实现，支持自然语言（DeepSeek Function Calling）和结构化 JSON 两种输入方式，80 个单元测试全部通过。
 
 ## 项目简介
 
@@ -22,7 +22,7 @@
 
 与直接让大模型生成路径相比，本项目采用：
 
-- Agent/LLM 负责自然语言理解和重规划决策；
+- Agent/LLM 负责自然语言理解和重规划决策（通过 Function Calling 输出结构化任务）；
 - A*、冲突检测、预留表和路径验证负责确定性求解；
 - 所有成功结果都必须经过程序验证。
 
@@ -200,7 +200,7 @@ conflict_check ──→ 无冲突 ──→ validate_final ──→ compute_me
 | Graph 节点 | `app/orchestration/graph_nodes.py` | 10 个纯函数节点 |
 | Workflow | `app/orchestration/workflow.py` | 封装编译后 Graph，对外保持 PlanningState 接口 |
 | GraphState | `app/domain/graph_state.py` | 22 字段 TypedDict，累积字段使用 operator.add reducer |
-| 任务解析 Agent | `app/agents/task_parser_agent.py` | DeepSeek LLM 自然语言→结构化任务 |
+| 任务解析 Agent | `app/agents/task_parser_agent.py` | DeepSeek LLM（Function Calling）自然语言→结构化任务 |
 | 重规划 Agent | `app/agents/replanning_agent.py` | 冲突诊断与 3 级重规划决策 |
 | 重规划策略 | `app/orchestration/replanning_policy.py` | 执行重规划（预留表 + 优先级调整） |
 | 地图加载器 | `app/services/map_loader.py` | 加载和校验固定 JSON 地图 |
@@ -348,6 +348,8 @@ conflict_check ──→ 无冲突 ──→ validate_final ──→ compute_me
 
 ## 结构化任务示例
 
+自然语言输入经过 TaskParserAgent 的 **Function Calling** 管道后，LLM 返回结构化的工具调用参数（而非自由文本 JSON），系统直接解析为 `TaskBatch`：
+
 自然语言：
 
 > R1 从左上角前往装卸区 A，R2 前往充电区，北侧通道临时关闭。
@@ -487,7 +489,7 @@ conflict_check ──→ 无冲突 ──→ validate_final ──→ compute_me
 | 类别 | 选型 |
 |---|---|
 | 编程语言 | Python 3.9+ |
-| Agent/LLM | DeepSeek Chat API（OpenAI 兼容协议） |
+| Agent/LLM | DeepSeek Chat API（OpenAI 兼容协议，Function Calling） |
 | 数据校验 | Pydantic v2 |
 | 可视化 | matplotlib（静态路径图 + 逐帧动画） |
 | 数值计算 | numpy |
@@ -514,7 +516,7 @@ warehouse_scheduler/
 │   │   ├── planning_state.py#  PlanningState, ReplanDecision, PlanningMetrics
 │   │   └── graph_state.py   #   GraphState TypedDict (LangGraph)
 │   ├── agents/              # 2 个 Agent (+ 1 废弃)
-│   │   ├── task_parser_agent.py   # DeepSeek 自然语言解析
+│   │   ├── task_parser_agent.py   # DeepSeek Function Calling 自然语言解析
 │   │   ├── replanning_agent.py    # 冲突诊断与重规划决策
 │   │   └── scheduler_agent.py     # [已废弃] 旧调度器（保留参考）
 │   ├── tools/               # 4 个确定性工具
@@ -615,7 +617,7 @@ pip install -r requirements.txt
 python -m pytest tests/ -v
 ```
 
-预期输出：`93 passed`。
+预期输出：`80 passed`（单元测试全部通过）。
 
 ## 使用方式
 
@@ -822,7 +824,7 @@ pip install -r requirements.txt
 ### 运行测试
 
 ```bash
-# 全部测试（93 个）
+# 全部测试（80 个单元 + 13 个集成）
 python -m pytest tests/ -v
 
 # 仅单元测试（80 个）
@@ -1087,7 +1089,7 @@ MVP 当前没有数据库迁移要求。
 ### ✅ 已完成：MVP + LangGraph 迁移
 
 - [x] 固定 JSON 地图加载与校验
-- [x] 自然语言任务解析（DeepSeek Chat）
+- [x] 自然语言任务解析（DeepSeek Chat Function Calling）
 - [x] 结构化 JSON 输入（离线模式）
 - [x] 时空 A* 路径规划
 - [x] 顶点/交换/起点/终点冲突检测
@@ -1096,7 +1098,7 @@ MVP 当前没有数据库迁移要求。
 - [x] 路径规划成功率和规划耗时
 - [x] matplotlib 可视化（静态图 + 步进动画）
 - [x] **LangGraph 编排引擎**（StateGraph + 10 节点 + 条件路由）
-- [x] 93 个测试全部通过
+- [x] 80 个单元测试全部通过
 
 ### 下一阶段
 
