@@ -12,6 +12,23 @@ const COLORS = {
   pathTrail: 'rgba(52,152,219,0.3)',
 }
 
+const OBSTACLE_EMOJI = {
+  shelf: '📦',
+  wall: '🧱',
+  pillar: '⬜',
+  obstacle: '🚫',
+}
+
+const LOCATION_EMOJI = {
+  loading_zone: '🚛',
+  charging_zone: '🔋',
+  workstation: '🛠️',
+  shelf: '📦',
+  maintenance: '🔧',
+}
+
+const EMOJI_FONT = '"Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif'
+
 const ROBOT_COLORS = ['#e74c3c', '#2ecc71', '#3498db', '#f39c12', '#9b59b6']
 
 export default function MapGrid({
@@ -43,7 +60,7 @@ export default function MapGrid({
 
   // Build lookup maps
   const buildMaps = useCallback(() => {
-    if (!mapData) return { obstacleSet: new Set(), facilitySet: new Set(), entrySet: new Set(), corridorSet: new Set(), locationMap: {}, entryToLocation: {} }
+    if (!mapData) return { obstacleSet: new Set(), facilitySet: new Set(), entrySet: new Set(), corridorSet: new Set(), locationMap: {}, entryToLocation: {}, obstacleTypeMap: new Map(), locationTypeMap: new Map() }
 
     const obstacleSet = new Set()
     mapData.static_obstacles?.forEach(obs =>
@@ -71,7 +88,18 @@ export default function MapGrid({
       cor.cells?.forEach(c => corridorSet.add(`${c[0]},${c[1]}`))
     )
 
-    return { obstacleSet, facilitySet, entrySet, corridorSet, locationMap, entryToLocation }
+    const obstacleTypeMap = new Map()
+    mapData.static_obstacles?.forEach(obs => {
+      obs.cells?.forEach(c => obstacleTypeMap.set(`${c[0]},${c[1]}`, obs.type))
+    })
+
+    const locationTypeMap = new Map()
+    mapData.locations?.forEach(loc => {
+      loc.facility_cells?.forEach(c => locationTypeMap.set(`${c[0]},${c[1]}`, loc))
+      loc.entry_cells?.forEach(c => locationTypeMap.set(`${c[0]},${c[1]}`, loc))
+    })
+
+    return { obstacleSet, facilitySet, entrySet, corridorSet, locationMap, entryToLocation, obstacleTypeMap, locationTypeMap }
   }, [mapData])
 
   // Get robot positions at current time step
@@ -117,7 +145,7 @@ export default function MapGrid({
     canvas.width = w
     canvas.height = h
 
-    const { obstacleSet, facilitySet, entrySet, corridorSet, locationMap } = buildMaps()
+    const { obstacleSet, facilitySet, entrySet, corridorSet, locationMap, obstacleTypeMap, locationTypeMap } = buildMaps()
     const robotPositions = getRobotPositions()
     const hovered = hoveredCell.current
 
@@ -151,6 +179,24 @@ export default function MapGrid({
         ctx.strokeStyle = COLORS.gridLine
         ctx.lineWidth = 0.5
         ctx.strokeRect(cx, cy, CELL_SIZE, CELL_SIZE)
+
+        // Draw obstacle emoji overlay
+        if (obstacleSet.has(key)) {
+          const type = obstacleTypeMap.get(key)
+          const emoji = OBSTACLE_EMOJI[type] || '🚫'
+          ctx.font = `16px ${EMOJI_FONT}`
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+          ctx.fillText(emoji, cx + CELL_SIZE / 2, cy + CELL_SIZE / 2)
+        }
+
+        // Draw entry cell dot marker
+        if (entrySet.has(key)) {
+          ctx.fillStyle = 'rgba(255,255,255,0.35)'
+          ctx.beginPath()
+          ctx.arc(cx + CELL_SIZE / 2, cy + CELL_SIZE / 2, 3, 0, Math.PI * 2)
+          ctx.fill()
+        }
       }
     }
 
@@ -184,18 +230,24 @@ export default function MapGrid({
       ctx.fillText(`${y}`, GRID_PAD - 4, GRID_PAD + y * CELL_SIZE + CELL_SIZE / 2 + 3)
     }
 
-    // Draw location labels on facility cells
-    ctx.font = '8px sans-serif'
+    // Draw location labels with emoji on facility cells
     ctx.textAlign = 'center'
-    ctx.fillStyle = '#ddd'
     for (const loc of (mapData.locations || [])) {
       if (loc.facility_cells && loc.facility_cells.length > 0) {
-        const [fx, fy] = loc.facility_cells[0]
+        const midIdx = Math.floor(loc.facility_cells.length / 2)
+        const [fx, fy] = loc.facility_cells[midIdx]
         const cx = GRID_PAD + fx * CELL_SIZE + CELL_SIZE / 2
         const cy = GRID_PAD + fy * CELL_SIZE + CELL_SIZE / 2
-        // Truncate name
-        const name = loc.name.length > 3 ? loc.name.slice(0, 3) : loc.name
-        ctx.fillText(name, cx, cy + 3)
+        // Draw type emoji
+        const emoji = LOCATION_EMOJI[loc.type] || ''
+        ctx.font = `14px ${EMOJI_FONT}`
+        ctx.fillStyle = '#fff'
+        ctx.fillText(emoji, cx, cy - 4)
+        // Draw name below
+        ctx.font = '7px sans-serif'
+        ctx.fillStyle = '#ccc'
+        const name = loc.name.length > 5 ? loc.name.slice(0, 5) : loc.name
+        ctx.fillText(name, cx, cy + 8)
       }
     }
 
@@ -253,23 +305,28 @@ export default function MapGrid({
     Object.entries(robotPositions).forEach(([rid, pos]) => {
       const cx = GRID_PAD + pos.x * CELL_SIZE + CELL_SIZE / 2
       const cy = GRID_PAD + pos.y * CELL_SIZE + CELL_SIZE / 2
-      const r = CELL_SIZE / 2 - 2
 
-      // Robot circle
-      ctx.fillStyle = pos.color
+      // Colored background glow
+      const gradient = ctx.createRadialGradient(cx, cy, 2, cx, cy, 10)
+      gradient.addColorStop(0, pos.color)
+      gradient.addColorStop(1, 'transparent')
+      ctx.fillStyle = gradient
       ctx.beginPath()
-      ctx.arc(cx, cy, r, 0, Math.PI * 2)
+      ctx.arc(cx, cy, 10, 0, Math.PI * 2)
       ctx.fill()
-      ctx.strokeStyle = 'white'
-      ctx.lineWidth = 2
-      ctx.stroke()
 
-      // Robot label
-      ctx.fillStyle = 'white'
-      ctx.font = 'bold 10px sans-serif'
+      // Robot emoji
+      ctx.font = `18px ${EMOJI_FONT}`
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
-      ctx.fillText(rid, cx, cy)
+      ctx.fillText('🤖', cx, cy - 1)
+
+      // Robot ID label below cell
+      ctx.fillStyle = '#fff'
+      ctx.font = 'bold 7px sans-serif'
+      ctx.textBaseline = 'top'
+      ctx.textAlign = 'center'
+      ctx.fillText(rid, cx, cy + 11)
     })
 
     // Draw hover highlight
@@ -333,17 +390,29 @@ export default function MapGrid({
     draw()
   }, [draw])
 
-  const { obstacleSet, facilitySet, entrySet, corridorSet } = buildMaps()
+  const { obstacleSet, facilitySet, entrySet, corridorSet, obstacleTypeMap, locationTypeMap } = buildMaps()
 
   // Build cell info tooltip content
   const getCellInfo = useCallback((x, y) => {
     const key = `${x},${y}`
-    if (obstacleSet.has(key)) return '静态障碍物'
-    if (facilitySet.has(key)) return '设施本体'
-    if (entrySet.has(key)) return '入口格'
+    if (obstacleSet.has(key)) {
+      const type = obstacleTypeMap.get(key)
+      const emoji = OBSTACLE_EMOJI[type] || '🚫'
+      const label = type === 'shelf' ? '货架' : type === 'wall' ? '墙壁' : type === 'pillar' ? '柱子' : '障碍物'
+      return `${emoji} ${label}`
+    }
+    if (facilitySet.has(key)) {
+      const loc = locationTypeMap.get(key)
+      const emoji = LOCATION_EMOJI[loc?.type] || ''
+      return `${emoji} ${loc?.name || '设施本体'}`
+    }
+    if (entrySet.has(key)) {
+      const loc = locationTypeMap.get(key)
+      return `入口格${loc ? ` (${loc.name})` : ''}`
+    }
     if (corridorSet.has(key)) return '通道'
     return '可行走'
-  }, [obstacleSet, facilitySet, entrySet, corridorSet])
+  }, [obstacleSet, facilitySet, entrySet, corridorSet, obstacleTypeMap, locationTypeMap])
 
   return (
     <div className="map-grid-container" ref={containerRef}>
@@ -364,24 +433,32 @@ export default function MapGrid({
           可行走
         </div>
         <div className="legend-item">
-          <div className="legend-swatch" style={{background: COLORS.obstacle}} />
-          障碍物
+          <span style={{fontSize: '14px'}}>📦</span>
+          <span style={{marginLeft: 2}}>货架</span>
         </div>
         <div className="legend-item">
-          <div className="legend-swatch" style={{background: COLORS.facility}} />
-          设施
+          <span style={{fontSize: '14px'}}>🧱</span>
+          <span style={{marginLeft: 2}}>墙壁</span>
+        </div>
+        <div className="legend-item">
+          <span style={{fontSize: '14px'}}>⬜</span>
+          <span style={{marginLeft: 2}}>柱子</span>
         </div>
         <div className="legend-item">
           <div className="legend-swatch" style={{background: COLORS.entry}} />
           入口
         </div>
         <div className="legend-item">
+          <div className="legend-swatch" style={{background: COLORS.facility}} />
+          设施
+        </div>
+        <div className="legend-item">
           <div className="legend-swatch" style={{background: COLORS.corridor}} />
           通道
         </div>
         <div className="legend-item">
-          <div className="legend-swatch" style={{background: '#e74c3c', borderRadius: '50%'}} />
-          机器人
+          <span style={{fontSize: '14px'}}>🤖</span>
+          <span style={{marginLeft: 2}}>机器人</span>
         </div>
       </div>
     </div>
