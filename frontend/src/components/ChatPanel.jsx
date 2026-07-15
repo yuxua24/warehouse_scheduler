@@ -26,7 +26,9 @@ export default function ChatPanel({ onScheduleResult, cronJobs, onCronChange }) 
         role: 'bot', text: result.reply, time: new Date(),
         image: result.image_url || null,
       }])
-      if (result.schedule && onScheduleResult) onScheduleResult(result.schedule, text)
+      if (result.schedule && result.schedule.tasks?.length > 0 && onScheduleResult) {
+        onScheduleResult(result.schedule, text)
+      }
       if (result.cron_jobs && onCronChange) onCronChange(result.cron_jobs)
       setConfirmPending(result.confirm_needed || null)
     } catch (e) {

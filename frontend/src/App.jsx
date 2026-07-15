@@ -233,14 +233,13 @@ export default function App() {
 
             {activeTab === 'results' && (
               <ResultsPanel
-                result={scheduleResult}
+                history={resultHistory}
                 paths={paths}
                 timeStep={timeStep}
                 maxTimeStep={maxTimeStep}
                 setTimeStep={setTimeStep}
                 animating={animating}
                 setAnimating={setAnimating}
-                history={resultHistory}
                 onSelectResult={setScheduleResult}
               />
             )}
