@@ -32,7 +32,15 @@ export default function App() {
   // Path overlay data (derived from scheduleResult)
   const [paths, setPaths] = useState({})
   const [cronJobs, setCronJobs] = useState([])
-  const [resultHistory, setResultHistory] = useState([])
+  const [resultHistory, setResultHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('warehouse_results') || '[]') }
+    catch { return [] }
+  })
+
+  // 持久化结果历史
+  useEffect(() => {
+    try { localStorage.setItem('warehouse_results', JSON.stringify(resultHistory)) } catch {}
+  }, [resultHistory])
 
   // Load initial data
   useEffect(() => {
@@ -53,6 +61,23 @@ export default function App() {
       setError(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function reloadMapData() {
+    try {
+      const [map, rt] = await Promise.all([
+        fetchMap(),
+        fetch('/api/runtime').then(r => r.ok ? r.json() : null),
+      ])
+      setMapData(map)
+      setRuntime(rt)
+      // 地图变更后清除旧的调度结果（路径已不匹配新地图状态）
+      setScheduleResult(null)
+      setPaths({})
+      setMaxTimeStep(0)
+    } catch (e) {
+      // silent
     }
   }
 
@@ -190,6 +215,7 @@ export default function App() {
                   onScheduleResult={handleChatResult}
                   cronJobs={cronJobs}
                   onCronChange={handleCronUpdate}
+                  onMapChange={reloadMapData}
                 />
               </div>
             </div>
@@ -241,6 +267,8 @@ export default function App() {
                 animating={animating}
                 setAnimating={setAnimating}
                 onSelectResult={setScheduleResult}
+                onDeleteResult={(id) => setResultHistory(prev => prev.filter(r => r.id !== id))}
+                onClearResults={() => setResultHistory([])}
               />
             )}
             {activeTab === 'cron' && (

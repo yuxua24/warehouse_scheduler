@@ -4,28 +4,35 @@
     {
       "robot_id": "R1",
       "position": [
-        16,
-        18
+        10,
+        1
       ],
-      "status": "idle",
+      "status": "waiting",
+      "assigned_task": {
+        "type": "transport",
+        "target": "parking_zone",
+        "target_name": "机器人停放区"
+      },
       "enabled": true
     },
     {
       "robot_id": "R2",
       "position": [
-        13,
-        6
+        9,
+        1
       ],
-      "status": "idle",
+      "status": "waiting",
+      "assigned_task": null,
       "enabled": true
     },
     {
       "robot_id": "R3",
       "position": [
-        8,
-        10
+        11,
+        0
       ],
-      "status": "idle",
+      "status": "waiting",
+      "assigned_task": null,
       "enabled": true
     }
   ],

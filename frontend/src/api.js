@@ -121,3 +121,13 @@ export async function confirmChat(confirmed) {
   if (!res.ok) throw new Error(`Confirm failed: ${res.status}`)
   return res.json()
 }
+
+// ── Chat History Save ────────────────────────────────────────────────────
+
+export async function saveChatHistory(sessionId, messages) {
+  await fetch(`${API_BASE}/chat/save`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: JSON.stringify({ session: sessionId, messages }) }),
+  })
+}

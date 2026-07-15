@@ -9,6 +9,7 @@ const STATUS_LABELS = {
 export default function ResultsPanel({
   result, paths, timeStep, maxTimeStep, setTimeStep,
   animating, setAnimating, history = [], onSelectResult = null,
+  onDeleteResult = null, onClearResults = null,
 }) {
   const [expandedId, setExpandedId] = useState(null)
 
@@ -34,7 +35,15 @@ export default function ResultsPanel({
 
   return (
     <div className="results-panel">
-      <h3>📊 结果历史 ({history.length})</h3>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <h3 style={{ margin: 0 }}>📊 结果历史 ({history.length})</h3>
+        {history.length > 0 && onClearResults && (
+          <button className="action-btn danger" style={{ fontSize: 11, padding: '3px 8px' }}
+            onClick={() => { if (confirm('确定清空全部结果？')) onClearResults() }}>
+            🗑 清空
+          </button>
+        )}
+      </div>
 
       {history.map((item) => {
         const isExpanded = expandedId === item.id
@@ -58,6 +67,11 @@ export default function ResultsPanel({
                 transition: 'transform 0.25s ease',
                 fontSize: 10, color: 'var(--text-secondary)',
               }}>▼</span>
+              {onDeleteResult && (
+                <span style={{ marginLeft: 8, cursor: 'pointer', fontSize: 12, opacity: 0.5 }}
+                  onClick={(e) => { e.stopPropagation(); if (confirm('删除这个结果？')) onDeleteResult(item.id) }}
+                  title="删除">🗑️</span>
+              )}
             </div>
 
             <div style={{

@@ -10,15 +10,38 @@ from app.services.location_resolver import LocationResolver
 from app.services.robot_registry import RobotRegistry
 
 
-PARSE_SYSTEM_PROMPT = """你是一个仓储机器人任务解析器。你的任务是将用户自然语言指令转换为结构化的机器人任务和临时封闭约束。
+PARSE_SYSTEM_PROMPT = """你是一个仓储机器人任务解析器。将用户自然语言指令转换为结构化的机器人任务。
 
-## 规则
-1. **robot_id** 必须使用用户指定的ID（如R1, R2, R3），如果用户没指定，按出现顺序分配R1, R2...
-2. **start** 坐标：如果用户明确指定了起点坐标（如"左上角"对应[0,0]），请填写。如果没有指定，不要填start字段（系统会用当前位置补全）。
-3. **goal_location_id** 必须使用下面列出的location_id，根据用户提到的目标（如"装卸区"、"充电区"、"货架A"）匹配对应的ID。不要编造不存在的ID。
-4. **priority** 数字越小优先级越高。如果用户指定了优先级就按用户说的，否则按指令中出现顺序（1, 2, 3...）。
-5. **临时封闭**：如果用户提到"关闭某通道"或"封闭某区域"，生成对应的constraint。target_id填下方列出的通道ID。
-6. 如果用户的指令中有无法理解的内容，放到parse_warnings。如果有严重错误（如不存在的机器人），放到parse_errors。
+## 核心规则
+
+### 空间位置映射
+地图是 20×20 网格，坐标原点在左上角，x 向右，y 向下：
+- "左上角" → (0,0) 附近
+- "右上角" → (19,0) 附近
+- "左下角" → (0,19) 附近
+- "右下角" → (19,19) 附近
+- "中间"、"中心" → (10,10) 附近
+- 如果用户指定了具体坐标如 [5,3]，直接使用
+
+### 位置匹配
+- goal_location_id 必须从下方【可用位置】中选择
+- 如果用户的描述不在列表中（如只说"右上角"），根据空间位置映射找到最近的 entry_cells 位置
+- 例如"去右上角"→ 找 entry_cells 坐标最接近(19,0)的位置
+
+### 机器人分配
+- 如果用户指定了机器人ID（如R1、R2），严格使用
+- 如果用户说"所有机器人"或"全部"，为每个可用机器人生成一个任务
+- 如果用户没说哪个机器人，根据指令内容推断（如只说"去充电区"则可为每个空闲机器人生成任务）
+
+### 优先级
+- 数字越小优先级越高，默认按出现顺序从1开始递增
+
+### 临时封闭
+- "关闭/封闭某通道" → 在 constraints 中生成 closed_corridor
+- target_id 填下方【可用通道】中的ID
+
+### 卸货确认
+- "卸货完成"、"货物已卸"、"XX卸完" → 在 parse_warnings 中标注，系统会另行处理
 
 ## 可用位置
 {locations_info}
@@ -222,9 +245,10 @@ class TaskParserAgent:
     def _build_locations_info(self) -> str:
         lines = []
         for loc in self.map.locations:
+            aliases_str = ", ".join(loc.aliases) if loc.aliases else "无"
             lines.append(
                 f"- location_id: {loc.location_id}, name: {loc.name}, "
-                f"aliases: {loc.aliases}, entry_cells: {loc.entry_cells}"
+                f"aliases: [{aliases_str}], entry_cells: {loc.entry_cells}"
             )
         return "\n".join(lines)
 
@@ -341,12 +365,14 @@ class TaskParserAgent:
             "function": {
                 "name": "classify_intent",
                 "description": (
-                    "分析用户输入，判断是调度机器人执行任务，"
-                    "还是管理定时任务（创建/查看/删除/启用/禁用）。"
-                    "注意：\"查看定时任务\"、\"输出当前定时任务\"、"
-                    "\"有哪些定时任务\" 等都是 cron_list 意图。"
-                    "\"每天晚上十点让机器人充电\" 这种含时间描述的调度"
-                    "是 cron_create 意图。"
+                    "分析用户输入，判断意图类型。\n"
+                    "schedule=调度机器人（R1去XX）；\n"
+                    "cron_create=创建定时任务（含时间+指令）；\n"
+                    "cron_list=查看定时任务；\ncron_delete=删除定时；\n"
+                    "cron_delete_all=删除全部定时；\ncron_toggle=开关定时；\n"
+                    "general_qa=提问仓库信息（机器人在哪、充电区在哪等）；\n"
+                    "show_map=显示地图；cargo_done=卸货完成；\n"
+                    "robot_move=移动机器人；map_modify=封闭/开放通道"
                 ),
                 "parameters": {
                     "type": "object",
@@ -360,16 +386,20 @@ class TaskParserAgent:
                                 "cron_delete",
                                 "cron_delete_all",
                                 "cron_toggle",
+                                "general_qa",
+                                "show_map",
+                                "cargo_done",
+                                "robot_move",
+                                "map_modify",
                                 "unknown",
                             ],
                             "description": (
-                                "用户意图：schedule=调度机器人执行任务；"
-                                "cron_create=创建定时任务（含时间描述）；"
-                                "cron_list=查看/列出定时任务；"
-                                "cron_delete=删除单个定时任务；"
-                                "cron_delete_all=删除全部定时任务（含确认/取消）；"
-                                "cron_toggle=启用/禁用定时任务；"
-                                "unknown=无法判断"
+                                "schedule=调度机器人；cron_create=创建定时任务；"
+                                "cron_list=查看定时任务；cron_delete=删除定时任务；"
+                                "cron_delete_all=删除全部定时；cron_toggle=开关定时任务；"
+                                "general_qa=提问咨询仓库信息（机器人位置、货架位置等）；"
+                                "show_map=显示地图；cargo_done=卸货完成确认；"
+                                "robot_move=移动机器人位置；map_modify=修改地图封闭/开放通道"
                             ),
                         },
                         "schedule_instruction": {
@@ -405,17 +435,19 @@ class TaskParserAgent:
                     {
                         "role": "system",
                         "content": (
-                            "你是一个仓储调度助手的意图识别器。"
-                            "分析用户输入，判断意图类型。\n"
-                            "关键规则：\n"
-                            "1. 含时间描述的调度请求（如\"每晚十点\"、\"每天8点\"）是 cron_create\n"
-                            "2. \"输出定时任务\"、\"查看定时任务\"、\"定时任务列表\"等是 cron_list\n"
-                            "3. \"删除全部定时任务\"、\"删除所有\"、\"清空定时\"是 cron_delete_all\n"
-                            "4. \"确认\"、\"是的\"、\"确定\" 在上一轮是危险操作确认时，填 confirmed=true\n"
-                            "5. \"取消\"、\"不\"、\"算了\" 在确认场景填 confirmed=false\n"
-                            "6. \"删除XX\"（单个名称）是 cron_delete\n"
-                            "7. \"禁用XX\"、\"启用XX\"等是 cron_toggle\n"
-                            "8. 纯机器人调度指令（如\"R1去装卸区\"）是 schedule\n"
+                            "你是仓储调度助手的意图识别器。分析用户输入，判断意图。\n"
+                            "规则:\n"
+                            "1. 含时间+任务的（每晚十点充电）→ cron_create\n"
+                            "2. 查看/列出定时 → cron_list\n"
+                            "3. 删除全部定时 → cron_delete_all\n"
+                            "4. 删除/禁用/启用单个 → cron_delete/cron_toggle\n"
+                            "5. 问仓库信息（在哪/位置/有哪些）→ general_qa\n"
+                            "6. 显示/查看地图 → show_map\n"
+                            "7. 卸货完成 → cargo_done\n"
+                            "8. 移动机器人 → robot_move\n"
+                            "9. 封闭/开放通道 → map_modify\n"
+                            "10. 调度指令（R1去XX）→ schedule\n"
+                            "11. 确认/取消 → 结合上轮设为 confirmed=true/false\n"
                         ),
                     },
                     {"role": "user", "content": text},

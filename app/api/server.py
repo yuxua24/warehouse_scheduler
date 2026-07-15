@@ -29,6 +29,7 @@ if os.path.isdir(_venv_packages):
     sys.path.insert(0, _venv_packages)
 
 from app.orchestration.workflow import Workflow
+from app.services.robot_selector import mark_robot_idle, get_waiting_robots, get_busy_robots
 from app.api.schemas import (
     SchedulingRequest,
     SchedulingResponse,
@@ -455,14 +456,17 @@ async def chat(request: ChatRequest):
     reply_text = ""
     schedule_result = None
     image_url = None
+    confirm_needed = None
 
-    # Step 2: 根据意图执行
+    # ── 根据 LLM 意图分类执行 ──────────────────────────────────────
     if intent == "schedule":
         try:
             state = wf.run(text)
             schedule_result = _state_to_response(state)
             reply_text = _format_schedule_md(state)
             image_url = _generate_path_image(state, text)
+            # 更新位置
+            _update_robot_positions(state)
         except Exception as e:
             reply_text = f"❌ 调度失败: {e}"
 
@@ -483,16 +487,27 @@ async def chat(request: ChatRequest):
     elif intent == "cron_delete_all":
         reply_text, confirm_needed = _handle_delete_all(intent_info)
 
+    elif intent == "map_modify":
+        reply_text, confirm_needed = _handle_map_modify(intent_info)
+
+    elif intent == "robot_move":
+        reply_text = _handle_robot_move(intent_info)
+
     elif intent == "cron_toggle":
         reply_text = _do_cron_toggle(intent_info)
 
+    elif intent == "show_map":
+        reply_text = "🗺️ 当前地图已渲染，请查看左侧画布"
+
+    elif intent == "general_qa":
+        reply_text = await _answer_question(text)
+
     else:
+        # 未知意图 → 尝试问答
         try:
-            state = wf.run(text)
-            schedule_result = _state_to_response(state)
-            reply_text = _format_schedule_md(state)
-        except Exception as e:
-            reply_text = f"❌ 无法理解: {e}"
+            reply_text = await _answer_question(text)
+        except Exception:
+            reply_text = "⚠️ 无法理解，请尝试：调度指令 / 查看定时任务 / 询问仓库信息"
 
     return {
         "intent": intent,
@@ -502,6 +517,138 @@ async def chat(request: ChatRequest):
         "confirm_needed": confirm_needed,
         "image_url": image_url,
     }
+
+
+def _has_robot_id(text: str) -> bool:
+    import re; return bool(re.search(r"R\d", text, re.IGNORECASE))
+
+
+def _auto_select_robot(text: str, wf) -> str:
+    import re
+    if re.search(r"所有|全部|每个|各|都", text): return text
+    if len(re.findall(r"R\d", text, re.IGNORECASE)) >= 2: return text
+    return text
+
+
+def _update_robot_positions(state) -> None:
+    if state.status.value not in ("succeeded", "partially_succeeded"): return
+    rp = CONFIGS_DIR / "warehouse_runtime.json"
+    try:
+        runtime = json.loads(rp.read_text(encoding="utf-8"))
+        for tr in state.task_results:
+            if tr.success and tr.path:
+                last = tr.path[-1]
+                for r in runtime.get("robots", []):
+                    if r["robot_id"] == tr.robot_id:
+                        r["position"] = [last.x, last.y]
+        rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+        reset_workflow()
+    except Exception: pass
+
+
+def _handle_cargo_done(text: str) -> str:
+    wf = get_workflow()
+    results = []
+    waiting = get_waiting_robots()
+    if waiting:
+        for r in waiting:
+            msg = _return_to_parking(r["robot_id"])
+            results.append(f"✅ {r['robot_id']} 卸货完成\n{msg}")
+    if not results:
+        busy = get_busy_robots()
+        for r in busy:
+            msg = _return_to_parking(r["robot_id"])
+            results.append(f"✅ {r['robot_id']} 卸货完成\n{msg}")
+    if not results:
+        results.append("⚠️ 没有正在执行任务的机器人")
+    return "\n\n".join(results)
+
+
+def _return_to_parking(robot_id: str) -> str:
+    mark_robot_idle(robot_id)
+    wf = get_workflow()
+    pos = wf.robot_registry.get_position(robot_id) if wf else None
+    pos_str = f"({pos[0]},{pos[1]})" if pos else "当前位置"
+    return f"🤖 {robot_id} 已标记为空闲，在{pos_str}"
+
+
+async def _answer_question(question: str) -> str:
+    import asyncio
+    wf = get_workflow()
+    if not wf or not wf.parser: return "❌ 系统未初始化"
+    ctx = [f"仓库 {wf.warehouse_map.width}×{wf.warehouse_map.height}"]
+    for loc in wf.warehouse_map.locations:
+        ctx.append(f"{loc.name}({loc.type}): 设施{loc.facility_cells} 入口{loc.entry_cells}")
+    for rid in wf.robot_registry.get_robot_ids():
+        pos = wf.robot_registry.get_position(rid)
+        ctx.append(f"机器人{rid}在{list(pos)}")
+    try:
+        loop = asyncio.get_event_loop()
+        resp = await loop.run_in_executor(None, lambda: wf.parser.client.chat.completions.create(
+            model=wf.parser.model,
+            messages=[{"role":"system","content":f"你是仓储助手，简洁回答。\n{chr(10).join(ctx)}"},{"role":"user","content":question}],
+            temperature=0.3, max_tokens=300))
+        return resp.choices[0].message.content.strip()
+    except Exception as e: return f"❌ 回答失败: {e}"
+
+
+def _handle_map_modify(info: dict) -> tuple:
+    global _pending_confirm
+    action = info.get("map_action", ""); target = info.get("map_target", "")
+    if not action or not target: return "❌ 请指定操作和目标", None
+    cn = {"block_corridor": "封闭", "unblock_corridor": "开放"}.get(action, action)
+    if info.get("confirmed"): return _execute_map_modify(action, target), None
+    _pending_confirm["default"] = {"action": "map_modify", "map_action": action, "map_target": target, "expires": time.time() + 120}
+    return (f"⚠️ 确定要{cn}「{target}」吗？此操作影响后续调度。回复「确认」执行。"), "map_modify"
+
+
+def _execute_map_modify(action: str, target: str) -> str:
+    wf = get_workflow()
+    if not wf or not wf.warehouse_map: return "❌ 地图未加载"
+    rp = CONFIGS_DIR / "warehouse_runtime.json"
+    runtime = json.loads(rp.read_text(encoding="utf-8")) if rp.exists() else {"robots": [], "active_blockages": []}
+    blockages = runtime.get("active_blockages", [])
+    if action == "block_corridor":
+        c = wf.warehouse_map.find_corridor(target)
+        if not c: return f"❌ 未找到通道「{target}」"
+        for b in blockages:
+            if b.get("target_id") == c.corridor_id: return f"⚠️ 已被封闭"
+        blockages.append({"blockage_id": f"chat_{c.corridor_id}", "target_type": "corridor", "target_id": c.corridor_id, "cells": [[x, y] for x, y in c.cells], "start_time": 0, "reason": "对话指令"})
+        rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+        reset_workflow(); return f"🔒 已封闭「{c.name}」"
+    elif action == "unblock_corridor":
+        c = wf.warehouse_map.find_corridor(target)
+        if not c: return f"❌ 未找到通道「{target}」"
+        before = len(blockages)
+        runtime["active_blockages"] = [b for b in blockages if b.get("target_id") != c.corridor_id]
+        if len(runtime["active_blockages"]) == before: return f"⚠️ 未被封闭"
+        rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+        reset_workflow(); return f"🔓 已开放「{c.name}」"
+    return f"❌ 不支持: {action}"
+
+
+def _handle_robot_move(info: dict) -> str:
+    import re
+    rid = info.get("robot_id", "").strip().upper()
+    rid = re.sub(r"机器人\s*", "R", rid)
+    if not rid.startswith("R"): rid = "R" + rid
+    pos = info.get("target_position", None)
+    if not rid or not pos or len(pos) != 2: return "❌ 请指定机器人ID和坐标"
+    x, y = int(pos[0]), int(pos[1])
+    wf = get_workflow()
+    if not wf or not wf.warehouse_map: return "❌ 地图未加载"
+    if not (0 <= x < wf.warehouse_map.width and 0 <= y < wf.warehouse_map.height): return f"❌ 坐标({x},{y})越界"
+    if wf.warehouse_map.is_obstacle(x, y): return f"❌ ({x},{y})是障碍物"
+    rp = CONFIGS_DIR / "warehouse_runtime.json"
+    try:
+        runtime = json.loads(rp.read_text(encoding="utf-8"))
+        for r in runtime.get("robots", []):
+            if r["robot_id"] == rid:
+                old = list(r["position"]); r["position"] = [x, y]
+                rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+                reset_workflow(); return f"🤖 {rid} 已从 {old} 移动到 ({x},{y})"
+        return f"❌ 未找到机器人「{rid}」"
+    except Exception as e: return f"❌ 修改失败: {e}"
 
 
 def _generate_path_image(state, instruction: str) -> str:

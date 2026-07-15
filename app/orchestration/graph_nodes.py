@@ -154,10 +154,12 @@ def build_obstacles(state: GraphState) -> dict:
     blockages: list = state.get("blockages", [])
     max_t = state.get("max_timestep", 200)
 
-    # Static obstacles
+    # Static obstacles (障碍物 + 设施本体格均不可通行)
     static_obs: Set[Tuple[int, int]] = set()
     for so in wmap.static_obstacles:
         static_obs.update(tuple(c) for c in so.cells)
+    for loc in wmap.locations:
+        static_obs.update(tuple(c) for c in loc.facility_cells)
 
     # Dynamic obstacles from blockages
     dynamic_obs: Set[Tuple[int, int, int]] = set()

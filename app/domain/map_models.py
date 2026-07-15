@@ -74,6 +74,9 @@ class WarehouseMap:
         self._obstacle_set = set()
         for obs in self.static_obstacles:
             self._obstacle_set.update(tuple(c) for c in obs.cells)
+        # 设施本体格也视为不可通行
+        for loc in self.locations:
+            self._obstacle_set.update(tuple(c) for c in loc.facility_cells)
 
         self._location_by_id = {}
         self._location_by_alias = {}

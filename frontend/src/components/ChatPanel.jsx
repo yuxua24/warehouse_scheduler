@@ -1,38 +1,59 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { sendChat, confirmChat } from '../api'
+import { sendChat, confirmChat, saveChatHistory } from '../api'
 
-export default function ChatPanel({ onScheduleResult, cronJobs, onCronChange }) {
+export default function ChatPanel({ onScheduleResult, cronJobs, onCronChange, onMapChange }) {
   const [messages, setMessages] = useState([
-    { role: 'bot', text: '🤖 你好！我是仓储调度助手。\n\n试试说：\n• R1前往装卸区，R2前往货架B\n• 输出当前定时任务\n• 每天晚上十点所有机器人回充电区\n• 删除所有定时任务', time: new Date() }
+    { role: 'bot', text: '🤖 你好！我是仓储调度助手。\n\n试试说：\n• R1前往装卸区，R2前往货架B\n• 输出当前定时任务\n• 每天晚上十点所有机器人回充电区\n• 删除所有定时任务', time: new Date().toISOString() }
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [confirmPending, setConfirmPending] = useState(null)
   const [lightbox, setLightbox] = useState(null)
+  const sessionId = useRef('chat_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19))
   const chatEndRef = useRef(null)
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+
+  // 保存对话到 memory/，同一会话覆盖同一文件
+  useEffect(() => {
+    const save = () => {
+      if (messages.length > 1) {
+        saveChatHistory(sessionId.current, messages).catch(() => {})
+      }
+    }
+    window.addEventListener('beforeunload', save)
+    const interval = setInterval(save, 30000)
+    return () => {
+      window.removeEventListener('beforeunload', save)
+      clearInterval(interval)
+      save()
+    }
+  }, [messages])
 
   const handleSend = useCallback(async () => {
     const text = input.trim()
     if (!text || loading) return
     setInput('')
     setLoading(true)
-    setMessages(prev => [...prev, { role: 'user', text, time: new Date() }])
+    setMessages(prev => [...prev, { role: 'user', text, time: new Date().toISOString() }])
 
     try {
       const result = await sendChat(text)
       setMessages(prev => [...prev, {
-        role: 'bot', text: result.reply, time: new Date(),
+        role: 'bot', text: result.reply, time: new Date().toISOString(),
         image: result.image_url || null,
       }])
       if (result.schedule && result.schedule.tasks?.length > 0 && onScheduleResult) {
         onScheduleResult(result.schedule, text)
       }
+      // 地图变更后刷新
+      if (onMapChange && (result.intent === 'robot_move' || result.intent === 'map_modify' || result.intent === 'show_map')) {
+        setTimeout(() => onMapChange(), 500)
+      }
       if (result.cron_jobs && onCronChange) onCronChange(result.cron_jobs)
       setConfirmPending(result.confirm_needed || null)
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'bot', text: '❌ 请求失败: ' + e.message, time: new Date() }])
+      setMessages(prev => [...prev, { role: 'bot', text: '❌ 请求失败: ' + e.message, time: new Date().toISOString() }])
     } finally {
       setLoading(false)
     }
@@ -42,13 +63,13 @@ export default function ChatPanel({ onScheduleResult, cronJobs, onCronChange }) 
     setLoading(true)
     setConfirmPending(null)
     const replyText = confirmed ? '确认' : '取消'
-    setMessages(prev => [...prev, { role: 'user', text: replyText, time: new Date() }])
+    setMessages(prev => [...prev, { role: 'user', text: replyText, time: new Date().toISOString() }])
     try {
       const result = await confirmChat(confirmed)
-      setMessages(prev => [...prev, { role: 'bot', text: result.reply, time: new Date() }])
+      setMessages(prev => [...prev, { role: 'bot', text: result.reply, time: new Date().toISOString() }])
       if (result.cron_jobs && onCronChange) onCronChange(result.cron_jobs)
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'bot', text: '❌ 操作失败: ' + e.message, time: new Date() }])
+      setMessages(prev => [...prev, { role: 'bot', text: '❌ 操作失败: ' + e.message, time: new Date().toISOString() }])
     } finally {
       setLoading(false)
     }
@@ -62,6 +83,7 @@ export default function ChatPanel({ onScheduleResult, cronJobs, onCronChange }) 
     { label: '查看定时任务', text: '输出当前定时任务' },
     { label: 'R1去装卸区', text: 'R1前往装卸区，R2前往货架B' },
     { label: '删除全部定时', text: '删除所有定时任务' },
+    { label: '显示地图', text: '显示当前地图' },
   ]
 
   return (
@@ -90,7 +112,7 @@ export default function ChatPanel({ onScheduleResult, cronJobs, onCronChange }) 
               )}
             </div>
             <span style={{ fontSize: 9, color: 'var(--text-secondary)', marginTop: 2 }}>
-              {msg.time.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(msg.time).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
         ))}

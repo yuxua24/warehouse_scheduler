@@ -1,3 +1,14 @@
 {
-  "jobs": []
+  "jobs": [
+    {
+      "job_id": "2b1afab6",
+      "name": "每晚十点回充电区",
+      "cron_expr": "0 22 * * *",
+      "instruction": "所有机器人回到充电区",
+      "enabled": true,
+      "created_at": "2026-07-16T00:44:06.585907",
+      "last_run_at": "",
+      "last_result": ""
+    }
+  ]
 }
