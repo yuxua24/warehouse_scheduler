@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-07-16 15:14:38",
+  "datasets": [
+    "scenario"
+  ],
+  "scenario": {
+    "planning": {
+      "total_cases": 15,
+      "total_tasks": 39,
+      "planned_tasks": 22,
+      "planning_success_rate": 0.5641,
+      "initial_success_rate": 0.2821,
+      "replan_trigger_rate": 0.6667,
+      "avg_replan_count": 0.13,
+      "partial_execution_rate": 0.4
+    },
+    "path_quality": {
+      "avg_path_length": 20.55,
+      "avg_makespan": 19.55,
+      "total_expanded_nodes": 5363,
+      "avg_expanded_nodes": 184.93,
+      "astar_call_count": 29,
+      "paths_found": 22
+    },
+    "conflict": {
+      "total_conflicts_detected": 16,
+      "cases_with_conflicts": 2,
+      "cases_resolved": 2,
+      "conflict_resolution_rate": 1.0,
+      "cases_with_final_conflicts": 0
+    },
+    "performance": {
+      "avg_total_time_ms": 5.09,
+      "max_total_time_ms": 25.45,
+      "min_total_time_ms": 0.84,
+      "p50_time_ms": 1.5,
+      "p95_time_ms": 25.45
+    }
+  }
+}

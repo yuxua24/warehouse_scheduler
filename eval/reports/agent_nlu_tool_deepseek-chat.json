@@ -1,0 +1,1288 @@
+{
+  "metrics": {
+    "tool_accuracy": {
+      "overall_accuracy": 1.0,
+      "total_cases": 25,
+      "correct_cases": 25,
+      "per_tool": {
+        "schedule_robots": {
+          "total": 5,
+          "correct": 5,
+          "accuracy": 1.0
+        },
+        "create_cron_job": {
+          "total": 2,
+          "correct": 2,
+          "accuracy": 1.0
+        },
+        "list_cron_jobs": {
+          "total": 3,
+          "correct": 3,
+          "accuracy": 1.0
+        },
+        "delete_cron_job": {
+          "total": 1,
+          "correct": 1,
+          "accuracy": 1.0
+        },
+        "delete_all_cron_jobs": {
+          "total": 1,
+          "correct": 1,
+          "accuracy": 1.0
+        },
+        "toggle_cron_job": {
+          "total": 2,
+          "correct": 2,
+          "accuracy": 1.0
+        },
+        "answer_question": {
+          "total": 2,
+          "correct": 2,
+          "accuracy": 1.0
+        },
+        "show_map": {
+          "total": 2,
+          "correct": 2,
+          "accuracy": 1.0
+        },
+        "move_robot": {
+          "total": 2,
+          "correct": 2,
+          "accuracy": 1.0
+        },
+        "modify_map": {
+          "total": 3,
+          "correct": 3,
+          "accuracy": 1.0
+        },
+        "confirm_cargo_done": {
+          "total": 2,
+          "correct": 2,
+          "accuracy": 1.0
+        }
+      },
+      "confusion_matrix": {
+        "schedule_robots": {
+          "schedule_robots": 5
+        },
+        "create_cron_job": {
+          "create_cron_job": 2
+        },
+        "list_cron_jobs": {
+          "list_cron_jobs": 3
+        },
+        "delete_cron_job": {
+          "delete_cron_job": 1
+        },
+        "delete_all_cron_jobs": {
+          "delete_all_cron_jobs": 1
+        },
+        "toggle_cron_job": {
+          "toggle_cron_job": 2
+        },
+        "answer_question": {
+          "answer_question": 2
+        },
+        "show_map": {
+          "show_map": 2
+        },
+        "move_robot": {
+          "move_robot": 2
+        },
+        "modify_map": {
+          "modify_map": 3
+        },
+        "confirm_cargo_done": {
+          "confirm_cargo_done": 2
+        }
+      }
+    },
+    "param_quality": {
+      "completeness": 0.96,
+      "exact_match_rate": 0.96,
+      "complete_count": 24,
+      "exact_match_count": 24,
+      "total_cases": 25
+    },
+    "edge_behavior": {
+      "correct_rejection_rate": 1.0,
+      "total_cases": 25,
+      "correct_cases": 25,
+      "per_category": {
+        "tool_selection": {
+          "total": 25,
+          "correct": 25,
+          "rate": 1.0
+        }
+      }
+    },
+    "latency": {
+      "avg_ms": 1137.37,
+      "p50_ms": 1022.79,
+      "p95_ms": 1491.46,
+      "max_ms": 2111.98,
+      "min_ms": 728.03,
+      "sample_count": 25
+    },
+    "token": {
+      "total_input_tokens": 58219,
+      "total_output_tokens": 1945,
+      "total_tokens": 60164,
+      "avg_input_tokens": 2328.76,
+      "avg_output_tokens": 77.8,
+      "avg_total_tokens": 2406.56,
+      "cached_tokens": 57600,
+      "cache_hit_rate": 0.9894,
+      "sample_count": 25
+    }
+  },
+  "results": [
+    {
+      "case_id": "tool-001",
+      "instruction": "R1去装卸区",
+      "category": "tool_selection",
+      "actual_tool": "schedule_robots",
+      "expected_tool": "schedule_robots",
+      "tool_correct": true,
+      "args": {
+        "tasks": [
+          {
+            "robot_id": "R1",
+            "goal_location_id": "loading_dock_north"
+          }
+        ]
+      },
+      "error": "Schedule failed: 'NoneType' object has no attribute 'task_results'",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "schedule_robots",
+          "actual": "schedule_robots"
+        },
+        "params": {
+          "all_required_filled": false,
+          "exact_match": false,
+          "checks": {
+            "tasks.0.robot_id": {
+              "passed": true,
+              "actual": "R1",
+              "expected": "{'expect': 'R1'}"
+            },
+            "tasks.0.goal_location_id": {
+              "passed": true,
+              "actual": "loading_dock_north",
+              "expected": "{'expect_in': ['loading_dock_north', 'loading_dock_west']}"
+            },
+            "tasks.0.priority": {
+              "passed": false,
+              "actual": "None",
+              "expected": "{'expect_ge': 1}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": [
+          "参数 tasks.0.priority: 期望={'expect_ge': 1}, 实际=None"
+        ]
+      },
+      "latency_ms": 1425.16,
+      "tokens": {
+        "input_tokens": 2327,
+        "output_tokens": 77,
+        "total_tokens": 2404,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-002",
+      "instruction": "R1去北装卸区，R2去货架B，R3去充电区",
+      "category": "tool_selection",
+      "actual_tool": "schedule_robots",
+      "expected_tool": "schedule_robots",
+      "tool_correct": true,
+      "args": {
+        "tasks": [
+          {
+            "robot_id": "R1",
+            "goal_location_id": "loading_dock_north",
+            "priority": 1
+          },
+          {
+            "robot_id": "R2",
+            "goal_location_id": "shelf_B_pickup",
+            "priority": 2
+          },
+          {
+            "robot_id": "R3",
+            "goal_location_id": "charging_station",
+            "priority": 3
+          }
+        ]
+      },
+      "error": "Schedule failed: 'NoneType' object has no attribute 'task_results'",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "schedule_robots",
+          "actual": "schedule_robots"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "tasks.0.robot_id": {
+              "passed": true,
+              "actual": "R1",
+              "expected": "{'expect': 'R1'}"
+            },
+            "tasks.1.robot_id": {
+              "passed": true,
+              "actual": "R2",
+              "expected": "{'expect': 'R2'}"
+            },
+            "tasks.2.robot_id": {
+              "passed": true,
+              "actual": "R3",
+              "expected": "{'expect': 'R3'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1292.25,
+      "tokens": {
+        "input_tokens": 2341,
+        "output_tokens": 130,
+        "total_tokens": 2471,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-003",
+      "instruction": "所有机器人回充电区",
+      "category": "tool_selection",
+      "actual_tool": "schedule_robots",
+      "expected_tool": "schedule_robots",
+      "tool_correct": true,
+      "args": {
+        "tasks": [
+          {
+            "robot_id": "R1",
+            "goal_location_id": "charging_station",
+            "priority": 1
+          },
+          {
+            "robot_id": "R2",
+            "goal_location_id": "charging_station",
+            "priority": 2
+          },
+          {
+            "robot_id": "R3",
+            "goal_location_id": "charging_station",
+            "priority": 3
+          },
+          {
+            "robot_id": "R4",
+            "goal_location_id": "charging_station",
+            "priority": 4
+          },
+          {
+            "robot_id": "R5",
+            "goal_location_id": "charging_station",
+            "priority": 5
+          }
+        ]
+      },
+      "error": "Schedule failed: 'NoneType' object has no attribute 'task_results'",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "schedule_robots",
+          "actual": "schedule_robots"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1379.54,
+      "tokens": {
+        "input_tokens": 2327,
+        "output_tokens": 176,
+        "total_tokens": 2503,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-004",
+      "instruction": "R1去充电区，R2去打包站，R3去维护区，R4去货架A",
+      "category": "tool_selection",
+      "actual_tool": "schedule_robots",
+      "expected_tool": "schedule_robots",
+      "tool_correct": true,
+      "args": {
+        "tasks": [
+          {
+            "robot_id": "R1",
+            "goal_location_id": "charging_station",
+            "priority": 1
+          },
+          {
+            "robot_id": "R2",
+            "goal_location_id": "packing_station",
+            "priority": 2
+          },
+          {
+            "robot_id": "R3",
+            "goal_location_id": "maintenance_zone",
+            "priority": 3
+          },
+          {
+            "robot_id": "R4",
+            "goal_location_id": "shelf_A_pickup",
+            "priority": 4
+          }
+        ]
+      },
+      "error": "Schedule failed: 'NoneType' object has no attribute 'task_results'",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "schedule_robots",
+          "actual": "schedule_robots"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1439.01,
+      "tokens": {
+        "input_tokens": 2346,
+        "output_tokens": 155,
+        "total_tokens": 2501,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-005",
+      "instruction": "每天晚上十点所有机器人回充电区",
+      "category": "tool_selection",
+      "actual_tool": "create_cron_job",
+      "expected_tool": "create_cron_job",
+      "tool_correct": true,
+      "args": {
+        "name": "每晚十点所有机器人回充电区",
+        "cron_expr": "0 22 * * *",
+        "instruction": "所有机器人回充电区"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "create_cron_job",
+          "actual": "create_cron_job"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "instruction": {
+              "passed": true,
+              "actual": "所有机器人回充电区",
+              "expected": "{'expect_contain': '充电区'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 2111.98,
+      "tokens": {
+        "input_tokens": 2330,
+        "output_tokens": 173,
+        "total_tokens": 2503,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-006",
+      "instruction": "每天早上8点R1去装卸区",
+      "category": "tool_selection",
+      "actual_tool": "create_cron_job",
+      "expected_tool": "create_cron_job",
+      "tool_correct": true,
+      "args": {
+        "name": "每天早上R1去装卸区",
+        "cron_expr": "0 8 * * *",
+        "instruction": "R1去loading_dock_north"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "create_cron_job",
+          "actual": "create_cron_job"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1491.46,
+      "tokens": {
+        "input_tokens": 2330,
+        "output_tokens": 136,
+        "total_tokens": 2466,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-007",
+      "instruction": "列出所有定时任务",
+      "category": "tool_selection",
+      "actual_tool": "list_cron_jobs",
+      "expected_tool": "list_cron_jobs",
+      "tool_correct": true,
+      "args": {},
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "list_cron_jobs",
+          "actual": "list_cron_jobs"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 903.4,
+      "tokens": {
+        "input_tokens": 2326,
+        "output_tokens": 30,
+        "total_tokens": 2356,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-008",
+      "instruction": "显示当前所有的定时任务",
+      "category": "tool_selection",
+      "actual_tool": "list_cron_jobs",
+      "expected_tool": "list_cron_jobs",
+      "tool_correct": true,
+      "args": {},
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "list_cron_jobs",
+          "actual": "list_cron_jobs"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 751.12,
+      "tokens": {
+        "input_tokens": 2327,
+        "output_tokens": 30,
+        "total_tokens": 2357,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-009",
+      "instruction": "删除定时任务'nightly'",
+      "category": "tool_selection",
+      "actual_tool": "delete_cron_job",
+      "expected_tool": "delete_cron_job",
+      "tool_correct": true,
+      "args": {
+        "job_name": "nightly"
+      },
+      "error": "未找到「nightly」",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "delete_cron_job",
+          "actual": "delete_cron_job"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "job_name": {
+              "passed": true,
+              "actual": "nightly",
+              "expected": "{'expect': 'nightly'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 968.38,
+      "tokens": {
+        "input_tokens": 2329,
+        "output_tokens": 61,
+        "total_tokens": 2390,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-010",
+      "instruction": "删除全部定时任务",
+      "category": "tool_selection",
+      "actual_tool": "delete_all_cron_jobs",
+      "expected_tool": "delete_all_cron_jobs",
+      "tool_correct": true,
+      "args": {},
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "delete_all_cron_jobs",
+          "actual": "delete_all_cron_jobs"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 879.72,
+      "tokens": {
+        "input_tokens": 2326,
+        "output_tokens": 31,
+        "total_tokens": 2357,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-011",
+      "instruction": "禁用定时任务'morning'",
+      "category": "tool_selection",
+      "actual_tool": "toggle_cron_job",
+      "expected_tool": "toggle_cron_job",
+      "tool_correct": true,
+      "args": {
+        "job_name": "morning",
+        "enabled": false
+      },
+      "error": "未找到「morning」",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "toggle_cron_job",
+          "actual": "toggle_cron_job"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "job_name": {
+              "passed": true,
+              "actual": "morning",
+              "expected": "{'expect_contain': 'morning'}"
+            },
+            "enabled": {
+              "passed": true,
+              "actual": "False",
+              "expected": "{'expect': False}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 961.45,
+      "tokens": {
+        "input_tokens": 2328,
+        "output_tokens": 65,
+        "total_tokens": 2393,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-012",
+      "instruction": "启用定时任务'nightly'",
+      "category": "tool_selection",
+      "actual_tool": "toggle_cron_job",
+      "expected_tool": "toggle_cron_job",
+      "tool_correct": true,
+      "args": {
+        "job_name": "nightly",
+        "enabled": true
+      },
+      "error": "未找到「nightly」",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "toggle_cron_job",
+          "actual": "toggle_cron_job"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "job_name": {
+              "passed": true,
+              "actual": "nightly",
+              "expected": "{'expect_contain': 'nightly'}"
+            },
+            "enabled": {
+              "passed": true,
+              "actual": "True",
+              "expected": "{'expect': True}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 961.15,
+      "tokens": {
+        "input_tokens": 2329,
+        "output_tokens": 65,
+        "total_tokens": 2394,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-013",
+      "instruction": "R1在哪里",
+      "category": "tool_selection",
+      "actual_tool": "answer_question",
+      "expected_tool": "answer_question",
+      "tool_correct": true,
+      "args": {
+        "question": "R1在哪里"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "answer_question",
+          "actual": "answer_question"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1084.94,
+      "tokens": {
+        "input_tokens": 2325,
+        "output_tokens": 56,
+        "total_tokens": 2381,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-014",
+      "instruction": "充电区在哪个位置",
+      "category": "tool_selection",
+      "actual_tool": "answer_question",
+      "expected_tool": "answer_question",
+      "tool_correct": true,
+      "args": {
+        "question": "充电区在哪个位置"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "answer_question",
+          "actual": "answer_question"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1018.05,
+      "tokens": {
+        "input_tokens": 2327,
+        "output_tokens": 59,
+        "total_tokens": 2386,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-015",
+      "instruction": "显示地图",
+      "category": "tool_selection",
+      "actual_tool": "show_map",
+      "expected_tool": "show_map",
+      "tool_correct": true,
+      "args": {},
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "show_map",
+          "actual": "show_map"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1024.46,
+      "tokens": {
+        "input_tokens": 2324,
+        "output_tokens": 35,
+        "total_tokens": 2359,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-016",
+      "instruction": "查看当前地图",
+      "category": "tool_selection",
+      "actual_tool": "show_map",
+      "expected_tool": "show_map",
+      "tool_correct": true,
+      "args": {},
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "show_map",
+          "actual": "show_map"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 920.62,
+      "tokens": {
+        "input_tokens": 2325,
+        "output_tokens": 27,
+        "total_tokens": 2352,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-017",
+      "instruction": "把R1移动到(5,3)",
+      "category": "tool_selection",
+      "actual_tool": "move_robot",
+      "expected_tool": "move_robot",
+      "tool_correct": true,
+      "args": {
+        "robot_id": "R1",
+        "position": [
+          5,
+          3
+        ]
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "move_robot",
+          "actual": "move_robot"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "robot_id": {
+              "passed": true,
+              "actual": "R1",
+              "expected": "{'expect': 'R1'}"
+            },
+            "position.0": {
+              "passed": true,
+              "actual": "5",
+              "expected": "{'expect': 5}"
+            },
+            "position.1": {
+              "passed": true,
+              "actual": "3",
+              "expected": "{'expect': 3}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1228.51,
+      "tokens": {
+        "input_tokens": 2331,
+        "output_tokens": 80,
+        "total_tokens": 2411,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-018",
+      "instruction": "关闭北侧通道",
+      "category": "tool_selection",
+      "actual_tool": "modify_map",
+      "expected_tool": "modify_map",
+      "tool_correct": true,
+      "args": {
+        "action": "close",
+        "corridor_id": "north_aisle"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "modify_map",
+          "actual": "modify_map"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "action": {
+              "passed": true,
+              "actual": "close",
+              "expected": "{'expect': 'close'}"
+            },
+            "corridor_id": {
+              "passed": true,
+              "actual": "north_aisle",
+              "expected": "{'expect': 'north_aisle'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1022.5,
+      "tokens": {
+        "input_tokens": 2326,
+        "output_tokens": 66,
+        "total_tokens": 2392,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-019",
+      "instruction": "开放北侧通道",
+      "category": "tool_selection",
+      "actual_tool": "modify_map",
+      "expected_tool": "modify_map",
+      "tool_correct": true,
+      "args": {
+        "action": "open",
+        "corridor_id": "north_aisle"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "modify_map",
+          "actual": "modify_map"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "action": {
+              "passed": true,
+              "actual": "open",
+              "expected": "{'expect': 'open'}"
+            },
+            "corridor_id": {
+              "passed": true,
+              "actual": "north_aisle",
+              "expected": "{'expect': 'north_aisle'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1022.79,
+      "tokens": {
+        "input_tokens": 2326,
+        "output_tokens": 66,
+        "total_tokens": 2392,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-020",
+      "instruction": "R1卸货完成",
+      "category": "tool_selection",
+      "actual_tool": "confirm_cargo_done",
+      "expected_tool": "confirm_cargo_done",
+      "tool_correct": true,
+      "args": {
+        "robot_id": "R1"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "confirm_cargo_done",
+          "actual": "confirm_cargo_done"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "robot_id": {
+              "passed": true,
+              "actual": "R1",
+              "expected": "{'expect': 'R1'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1157.37,
+      "tokens": {
+        "input_tokens": 2327,
+        "output_tokens": 58,
+        "total_tokens": 2385,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-021",
+      "instruction": "关闭中部主通道",
+      "category": "tool_selection",
+      "actual_tool": "modify_map",
+      "expected_tool": "modify_map",
+      "tool_correct": true,
+      "args": {
+        "action": "close",
+        "corridor_id": "main_cross_aisle"
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "modify_map",
+          "actual": "modify_map"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "action": {
+              "passed": true,
+              "actual": "close",
+              "expected": "{'expect': 'close'}"
+            },
+            "corridor_id": {
+              "passed": true,
+              "actual": "main_cross_aisle",
+              "expected": "{'expect': 'main_cross_aisle'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1405.25,
+      "tokens": {
+        "input_tokens": 2326,
+        "output_tokens": 93,
+        "total_tokens": 2419,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-022",
+      "instruction": "R2去货架C，R3去货架D",
+      "category": "tool_selection",
+      "actual_tool": "schedule_robots",
+      "expected_tool": "schedule_robots",
+      "tool_correct": true,
+      "args": {
+        "tasks": [
+          {
+            "robot_id": "R2",
+            "goal_location_id": "shelf_C_pickup",
+            "priority": 1
+          },
+          {
+            "robot_id": "R3",
+            "goal_location_id": "shelf_D_pickup",
+            "priority": 2
+          }
+        ]
+      },
+      "error": "Schedule failed: 'NoneType' object has no attribute 'task_results'",
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "schedule_robots",
+          "actual": "schedule_robots"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "tasks.0.robot_id": {
+              "passed": true,
+              "actual": "R2",
+              "expected": "{'expect': 'R2'}"
+            },
+            "tasks.1.robot_id": {
+              "passed": true,
+              "actual": "R3",
+              "expected": "{'expect': 'R3'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1327.07,
+      "tokens": {
+        "input_tokens": 2335,
+        "output_tokens": 119,
+        "total_tokens": 2454,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-023",
+      "instruction": "列出定时任务",
+      "category": "tool_selection",
+      "actual_tool": "list_cron_jobs",
+      "expected_tool": "list_cron_jobs",
+      "tool_correct": true,
+      "args": {},
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "list_cron_jobs",
+          "actual": "list_cron_jobs"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 728.03,
+      "tokens": {
+        "input_tokens": 2325,
+        "output_tokens": 30,
+        "total_tokens": 2355,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-024",
+      "instruction": "把R2移动到(10,10)",
+      "category": "tool_selection",
+      "actual_tool": "move_robot",
+      "expected_tool": "move_robot",
+      "tool_correct": true,
+      "args": {
+        "robot_id": "R2",
+        "position": [
+          10,
+          10
+        ]
+      },
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "move_robot",
+          "actual": "move_robot"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {
+            "robot_id": {
+              "passed": true,
+              "actual": "R2",
+              "expected": "{'expect': 'R2'}"
+            }
+          }
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 1016.61,
+      "tokens": {
+        "input_tokens": 2331,
+        "output_tokens": 80,
+        "total_tokens": 2411,
+        "cached_tokens": 2304
+      }
+    },
+    {
+      "case_id": "tool-025",
+      "instruction": "卸货完成",
+      "category": "tool_selection",
+      "actual_tool": "confirm_cargo_done",
+      "expected_tool": "confirm_cargo_done",
+      "tool_correct": true,
+      "args": {},
+      "error": null,
+      "comparison": {
+        "tool_selection": {
+          "correct": true,
+          "expected": "confirm_cargo_done",
+          "actual": "confirm_cargo_done"
+        },
+        "params": {
+          "all_required_filled": true,
+          "exact_match": true,
+          "checks": {}
+        },
+        "edge_behavior": {
+          "handled_correctly": true,
+          "failure_expected": false,
+          "partial_args": false
+        },
+        "issues": []
+      },
+      "latency_ms": 913.31,
+      "tokens": {
+        "input_tokens": 2325,
+        "output_tokens": 47,
+        "total_tokens": 2372,
+        "cached_tokens": 2304
+      }
+    }
+  ]
+}

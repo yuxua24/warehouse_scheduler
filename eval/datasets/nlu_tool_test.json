@@ -1,0 +1,203 @@
+[
+  {
+    "id": "tool-001",
+    "instruction": "R1去装卸区",
+    "expected_tool": "schedule_robots",
+    "check_params": {
+      "tasks.0.robot_id": {"expect": "R1"},
+      "tasks.0.goal_location_id": {"expect_in": ["loading_dock_north", "loading_dock_west"]},
+      "tasks.0.priority": {"expect_ge": 1}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-002",
+    "instruction": "R1去北装卸区，R2去货架B，R3去充电区",
+    "expected_tool": "schedule_robots",
+    "check_params": {
+      "tasks.0.robot_id": {"expect": "R1"},
+      "tasks.1.robot_id": {"expect": "R2"},
+      "tasks.2.robot_id": {"expect": "R3"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-003",
+    "instruction": "所有机器人回充电区",
+    "expected_tool": "schedule_robots",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-004",
+    "instruction": "R1去充电区，R2去打包站，R3去维护区，R4去货架A",
+    "expected_tool": "schedule_robots",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-005",
+    "instruction": "每天晚上十点所有机器人回充电区",
+    "expected_tool": "create_cron_job",
+    "check_params": {
+      "instruction": {"expect_contain": "充电区"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-006",
+    "instruction": "每天早上8点R1去装卸区",
+    "expected_tool": "create_cron_job",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-007",
+    "instruction": "列出所有定时任务",
+    "expected_tool": "list_cron_jobs",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-008",
+    "instruction": "显示当前所有的定时任务",
+    "expected_tool": "list_cron_jobs",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-009",
+    "instruction": "删除定时任务'nightly'",
+    "expected_tool": "delete_cron_job",
+    "check_params": {
+      "job_name": {"expect": "nightly"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-010",
+    "instruction": "删除全部定时任务",
+    "expected_tool": "delete_all_cron_jobs",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-011",
+    "instruction": "禁用定时任务'morning'",
+    "expected_tool": "toggle_cron_job",
+    "check_params": {
+      "job_name": {"expect_contain": "morning"},
+      "enabled": {"expect": false}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-012",
+    "instruction": "启用定时任务'nightly'",
+    "expected_tool": "toggle_cron_job",
+    "check_params": {
+      "job_name": {"expect_contain": "nightly"},
+      "enabled": {"expect": true}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-013",
+    "instruction": "R1在哪里",
+    "expected_tool": "answer_question",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-014",
+    "instruction": "充电区在哪个位置",
+    "expected_tool": "answer_question",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-015",
+    "instruction": "显示地图",
+    "expected_tool": "show_map",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-016",
+    "instruction": "查看当前地图",
+    "expected_tool": "show_map",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-017",
+    "instruction": "把R1移动到(5,3)",
+    "expected_tool": "move_robot",
+    "check_params": {
+      "robot_id": {"expect": "R1"},
+      "position.0": {"expect": 5},
+      "position.1": {"expect": 3}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-018",
+    "instruction": "关闭北侧通道",
+    "expected_tool": "modify_map",
+    "check_params": {
+      "action": {"expect": "close"},
+      "corridor_id": {"expect": "north_aisle"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-019",
+    "instruction": "开放北侧通道",
+    "expected_tool": "modify_map",
+    "check_params": {
+      "action": {"expect": "open"},
+      "corridor_id": {"expect": "north_aisle"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-020",
+    "instruction": "R1卸货完成",
+    "expected_tool": "confirm_cargo_done",
+    "check_params": {
+      "robot_id": {"expect": "R1"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-021",
+    "instruction": "关闭中部主通道",
+    "expected_tool": "modify_map",
+    "check_params": {
+      "action": {"expect": "close"},
+      "corridor_id": {"expect": "main_cross_aisle"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-022",
+    "instruction": "R2去货架C，R3去货架D",
+    "expected_tool": "schedule_robots",
+    "check_params": {
+      "tasks.0.robot_id": {"expect": "R2"},
+      "tasks.1.robot_id": {"expect": "R3"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-023",
+    "instruction": "列出定时任务",
+    "expected_tool": "list_cron_jobs",
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-024",
+    "instruction": "把R2移动到(10,10)",
+    "expected_tool": "move_robot",
+    "check_params": {
+      "robot_id": {"expect": "R2"}
+    },
+    "category": "tool_selection"
+  },
+  {
+    "id": "tool-025",
+    "instruction": "卸货完成",
+    "expected_tool": "confirm_cargo_done",
+    "category": "tool_selection"
+  }
+]

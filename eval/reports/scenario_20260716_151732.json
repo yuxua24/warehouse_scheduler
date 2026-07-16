@@ -1,0 +1,230 @@
+{
+  "report_meta": {
+    "generated_at": "2026-07-16T15:17:32.474294",
+    "dataset": "scenario",
+    "total_cases": 15
+  },
+  "summary": {
+    "pass": 15,
+    "warn": 0,
+    "fail": 0,
+    "error": 0,
+    "pass_rate": 1.0
+  },
+  "metrics": {
+    "planning": {
+      "total_cases": 15,
+      "total_tasks": 39,
+      "planned_tasks": 28,
+      "planning_success_rate": 0.7179,
+      "initial_success_rate": 0.4359,
+      "replan_trigger_rate": 0.4667,
+      "avg_replan_count": 0.13,
+      "partial_execution_rate": 0.4
+    },
+    "path_quality": {
+      "avg_path_length": 19.96,
+      "avg_makespan": 18.96,
+      "total_expanded_nodes": 2147,
+      "avg_expanded_nodes": 74.03,
+      "astar_call_count": 29,
+      "paths_found": 28
+    },
+    "conflict": {
+      "total_conflicts_detected": 16,
+      "cases_with_conflicts": 2,
+      "cases_resolved": 2,
+      "conflict_resolution_rate": 1.0,
+      "cases_with_final_conflicts": 0
+    },
+    "performance": {
+      "avg_total_time_ms": 3.4,
+      "max_total_time_ms": 11.89,
+      "min_total_time_ms": 0.93,
+      "p50_time_ms": 1.39,
+      "p95_time_ms": 11.89
+    }
+  },
+  "cases": [
+    {
+      "case_id": "sc-001",
+      "case_name": "单机器人-简单调度",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 1,
+      "total_tasks": 1,
+      "retry_count": 0,
+      "elapsed_ms": 8.4,
+      "issues": []
+    },
+    {
+      "case_id": "sc-002",
+      "case_name": "两机器人-不同目标",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 2,
+      "total_tasks": 2,
+      "retry_count": 0,
+      "elapsed_ms": 1.4,
+      "issues": []
+    },
+    {
+      "case_id": "sc-003",
+      "case_name": "三机器人-全覆盖",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 3,
+      "total_tasks": 3,
+      "retry_count": 0,
+      "elapsed_ms": 1.0,
+      "issues": []
+    },
+    {
+      "case_id": "sc-004",
+      "case_name": "两机器人-同一起点冲突",
+      "category": "conflict",
+      "grade": "PASS",
+      "status": "infeasible",
+      "planned_tasks": 1,
+      "total_tasks": 2,
+      "retry_count": 1,
+      "elapsed_ms": 1.9,
+      "issues": []
+    },
+    {
+      "case_id": "sc-005",
+      "case_name": "两机器人-交换冲突",
+      "category": "conflict",
+      "grade": "PASS",
+      "status": "partially_succeeded",
+      "planned_tasks": 1,
+      "total_tasks": 2,
+      "retry_count": 0,
+      "elapsed_ms": 2.6,
+      "issues": []
+    },
+    {
+      "case_id": "sc-006",
+      "case_name": "两机器人-同一目标",
+      "category": "conflict",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 2,
+      "total_tasks": 2,
+      "retry_count": 0,
+      "elapsed_ms": 1.2,
+      "issues": []
+    },
+    {
+      "case_id": "sc-007",
+      "case_name": "三机器人-优先级调度",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 3,
+      "total_tasks": 3,
+      "retry_count": 0,
+      "elapsed_ms": 1.1,
+      "issues": []
+    },
+    {
+      "case_id": "sc-008",
+      "case_name": "三机器人-北侧通道封闭",
+      "category": "blockage",
+      "grade": "PASS",
+      "status": "partially_succeeded",
+      "planned_tasks": 1,
+      "total_tasks": 3,
+      "retry_count": 0,
+      "elapsed_ms": 11.9,
+      "issues": []
+    },
+    {
+      "case_id": "sc-009",
+      "case_name": "两机器人-长距离调度",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 2,
+      "total_tasks": 2,
+      "retry_count": 0,
+      "elapsed_ms": 1.2,
+      "issues": []
+    },
+    {
+      "case_id": "sc-010",
+      "case_name": "五机器人-全量调度",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "partially_succeeded",
+      "planned_tasks": 4,
+      "total_tasks": 5,
+      "retry_count": 0,
+      "elapsed_ms": 3.5,
+      "issues": []
+    },
+    {
+      "case_id": "sc-011",
+      "case_name": "两机器人-交换位置",
+      "category": "conflict",
+      "grade": "PASS",
+      "status": "partially_succeeded",
+      "planned_tasks": 1,
+      "total_tasks": 2,
+      "retry_count": 0,
+      "elapsed_ms": 1.2,
+      "issues": []
+    },
+    {
+      "case_id": "sc-012",
+      "case_name": "五机器人-密集冲突",
+      "category": "conflict",
+      "grade": "PASS",
+      "status": "partially_succeeded",
+      "planned_tasks": 2,
+      "total_tasks": 5,
+      "retry_count": 1,
+      "elapsed_ms": 7.8,
+      "issues": []
+    },
+    {
+      "case_id": "sc-013",
+      "case_name": "三机器人-北侧通道封闭(2)",
+      "category": "blockage",
+      "grade": "PASS",
+      "status": "partially_succeeded",
+      "planned_tasks": 1,
+      "total_tasks": 3,
+      "retry_count": 0,
+      "elapsed_ms": 5.8,
+      "issues": []
+    },
+    {
+      "case_id": "sc-014",
+      "case_name": "单机器人-跨地图调度",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 1,
+      "total_tasks": 1,
+      "retry_count": 0,
+      "elapsed_ms": 1.0,
+      "issues": []
+    },
+    {
+      "case_id": "sc-015",
+      "case_name": "三机器人-简单并行",
+      "category": "normal",
+      "grade": "PASS",
+      "status": "succeeded",
+      "planned_tasks": 3,
+      "total_tasks": 3,
+      "retry_count": 0,
+      "elapsed_ms": 0.9,
+      "issues": []
+    }
+  ]
+}

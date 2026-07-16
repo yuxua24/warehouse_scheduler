@@ -1,0 +1,182 @@
+[
+  {
+    "id": "sc-001",
+    "name": "单机器人-简单调度",
+    "description": "R1 从当前位置前往北装卸区",
+    "tasks": [
+      {"robot_id": "R1", "goal_location_id": "loading_dock_north", "priority": 1}
+    ],
+    "expected": {"min_success": 1, "max_replans": 0},
+    "category": "normal"
+  },
+  {
+    "id": "sc-002",
+    "name": "两机器人-不同目标",
+    "description": "R1去装卸区，R2去充电区",
+    "tasks": [
+      {"robot_id": "R1", "goal_location_id": "loading_dock_north", "priority": 1},
+      {"robot_id": "R2", "goal_location_id": "charging_station", "priority": 2}
+    ],
+    "expected": {"min_success": 2, "max_replans": 0},
+    "category": "normal"
+  },
+  {
+    "id": "sc-003",
+    "name": "三机器人-全覆盖",
+    "description": "R1去北装卸区，R2去货架B，R3去维护区",
+    "tasks": [
+      {"robot_id": "R1", "goal_location_id": "loading_dock_north", "priority": 1},
+      {"robot_id": "R2", "goal_location_id": "shelf_B_pickup", "priority": 2},
+      {"robot_id": "R3", "goal_location_id": "maintenance_zone", "priority": 3}
+    ],
+    "expected": {"min_success": 3, "max_replans": 1},
+    "category": "normal"
+  },
+  {
+    "id": "sc-004",
+    "name": "两机器人-同一起点冲突",
+    "description": "R1和R2从同一位置出发",
+    "tasks": [
+      {"robot_id": "R1", "start": [18, 19], "goal_location_id": "loading_dock_north", "priority": 1},
+      {"robot_id": "R2", "start": [18, 19], "goal_location_id": "shelf_A_pickup", "priority": 2}
+    ],
+    "expected": {"min_success": 1, "max_replans": 3},
+    "category": "conflict"
+  },
+  {
+    "id": "sc-005",
+    "name": "两机器人-交换冲突",
+    "description": "R1和R2在狭窄通道相向而行",
+    "tasks": [
+      {"robot_id": "R1", "start": [0, 0], "goal_location_id": "charging_station", "priority": 1},
+      {"robot_id": "R2", "start": [19, 19], "goal_location_id": "loading_dock_north", "priority": 2}
+    ],
+    "expected": {"min_success": 1, "max_replans": 3},
+    "category": "conflict"
+  },
+  {
+    "id": "sc-006",
+    "name": "两机器人-同一目标",
+    "description": "R1和R2都去同一个目标充电区（多入口自动分配）",
+    "tasks": [
+      {"robot_id": "R1", "goal_location_id": "charging_station", "priority": 1},
+      {"robot_id": "R2", "goal_location_id": "charging_station", "priority": 2}
+    ],
+    "expected": {"min_success": 2, "max_replans": 1},
+    "category": "conflict"
+  },
+  {
+    "id": "sc-007",
+    "name": "三机器人-优先级调度",
+    "description": "三台机器人不同目标",
+    "tasks": [
+      {"robot_id": "R1", "goal_location_id": "loading_dock_north", "priority": 1},
+      {"robot_id": "R2", "goal_location_id": "packing_station", "priority": 2},
+      {"robot_id": "R3", "goal_location_id": "charging_station", "priority": 3}
+    ],
+    "expected": {"min_success": 3, "max_replans": 0},
+    "category": "normal"
+  },
+  {
+    "id": "sc-008",
+    "name": "三机器人-北侧通道封闭",
+    "description": "北侧通道封闭，机器人需绕行",
+    "tasks": [
+      {"robot_id": "R1", "start": [0, 0], "goal_location_id": "loading_dock_north", "priority": 1},
+      {"robot_id": "R2", "start": [19, 0], "goal_location_id": "shelf_B_pickup", "priority": 2},
+      {"robot_id": "R3", "start": [0, 19], "goal_location_id": "charging_station", "priority": 3}
+    ],
+    "blockages": [
+      {"target_type": "closed_corridor", "target_id": "north_aisle"}
+    ],
+    "expected": {"min_success": 1, "max_replans": 3},
+    "category": "blockage"
+  },
+  {
+    "id": "sc-009",
+    "name": "两机器人-长距离调度",
+    "description": "R1从最左到最右，R2从最上到最下",
+    "tasks": [
+      {"robot_id": "R1", "start": [5, 0], "goal_location_id": "charging_station", "priority": 1},
+      {"robot_id": "R2", "start": [15, 19], "goal_location_id": "loading_dock_north", "priority": 2}
+    ],
+    "expected": {"min_success": 1, "max_replans": 3},
+    "category": "normal"
+  },
+  {
+    "id": "sc-010",
+    "name": "五机器人-全量调度",
+    "description": "全部5台机器人同时调度",
+    "tasks": [
+      {"robot_id": "R1", "start": [17, 18], "goal_location_id": "loading_dock_north", "priority": 1},
+      {"robot_id": "R2", "start": [8, 5], "goal_location_id": "charging_station", "priority": 2},
+      {"robot_id": "R3", "start": [1, 18], "goal_location_id": "packing_station", "priority": 3},
+      {"robot_id": "R4", "start": [0, 0], "goal_location_id": "shelf_H_pickup", "priority": 4},
+      {"robot_id": "R5", "start": [19, 19], "goal_location_id": "maintenance_zone", "priority": 5}
+    ],
+    "expected": {"min_success": 2, "max_replans": 3},
+    "category": "normal"
+  },
+  {
+    "id": "sc-011",
+    "name": "两机器人-交换位置",
+    "description": "R1和R2各自前往对方初始位置",
+    "tasks": [
+      {"robot_id": "R1", "start": [0, 0], "goal_location_id": "shelf_E_pickup", "priority": 1},
+      {"robot_id": "R2", "start": [19, 19], "goal_location_id": "shelf_A_pickup", "priority": 2}
+    ],
+    "expected": {"min_success": 1, "max_replans": 3},
+    "category": "conflict"
+  },
+  {
+    "id": "sc-012",
+    "name": "五机器人-密集冲突",
+    "description": "多机器人交叉路径",
+    "tasks": [
+      {"robot_id": "R1", "start": [0, 0], "goal_location_id": "charging_station", "priority": 1},
+      {"robot_id": "R2", "start": [0, 19], "goal_location_id": "loading_dock_north", "priority": 2},
+      {"robot_id": "R3", "start": [19, 0], "goal_location_id": "maintenance_zone", "priority": 3},
+      {"robot_id": "R4", "start": [19, 19], "goal_location_id": "shelf_A_pickup", "priority": 4},
+      {"robot_id": "R5", "start": [10, 10], "goal_location_id": "packing_station", "priority": 5}
+    ],
+    "expected": {"min_success": 1, "max_replans": 3},
+    "category": "conflict"
+  },
+  {
+    "id": "sc-013",
+    "name": "三机器人-北侧通道封闭(2)",
+    "description": "北侧通道封闭，机器人需绕行（简化版）",
+    "tasks": [
+      {"robot_id": "R1", "start": [5, 5], "goal_location_id": "shelf_B_pickup", "priority": 1},
+      {"robot_id": "R2", "start": [0, 19], "goal_location_id": "shelf_K_pickup", "priority": 2},
+      {"robot_id": "R3", "start": [19, 0], "goal_location_id": "shelf_E_pickup", "priority": 3}
+    ],
+    "blockages": [
+      {"target_type": "closed_corridor", "target_id": "north_aisle"}
+    ],
+    "expected": {"min_success": 1, "max_replans": 3},
+    "category": "blockage"
+  },
+  {
+    "id": "sc-014",
+    "name": "单机器人-跨地图调度",
+    "description": "R1从右下角到左上角穿行",
+    "tasks": [
+      {"robot_id": "R1", "start": [19, 17], "goal_location_id": "loading_dock_north", "priority": 1}
+    ],
+    "expected": {"min_success": 1, "max_replans": 0},
+    "category": "normal"
+  },
+  {
+    "id": "sc-015",
+    "name": "三机器人-简单并行",
+    "description": "三台机器人并行路径",
+    "tasks": [
+      {"robot_id": "R1", "start": [0, 0], "goal_location_id": "shelf_A_pickup", "priority": 1},
+      {"robot_id": "R2", "start": [5, 19], "goal_location_id": "shelf_K_pickup", "priority": 2},
+      {"robot_id": "R3", "start": [19, 0], "goal_location_id": "shelf_N_pickup", "priority": 3}
+    ],
+    "expected": {"min_success": 2, "max_replans": 3},
+    "category": "normal"
+  }
+]

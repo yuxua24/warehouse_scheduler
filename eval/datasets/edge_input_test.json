@@ -1,0 +1,105 @@
+[
+  {
+    "id": "edge-001",
+    "instruction": "",
+    "expected_tool": "answer_question",
+    "expected_behavior": "reject_or_ask",
+    "category": "empty_input"
+  },
+  {
+    "id": "edge-002",
+    "instruction": "你好",
+    "expected_tool": "answer_question",
+    "category": "irrelevant"
+  },
+  {
+    "id": "edge-003",
+    "instruction": "今天天气怎么样",
+    "expected_tool": "answer_question",
+    "category": "irrelevant"
+  },
+  {
+    "id": "edge-004",
+    "instruction": "你是谁",
+    "expected_tool": "answer_question",
+    "category": "irrelevant"
+  },
+  {
+    "id": "edge-005",
+    "instruction": "asdf1234!!!@@@",
+    "expected_tool": "answer_question",
+    "expected_behavior": "reject_or_ask",
+    "category": "gibberish"
+  },
+  {
+    "id": "edge-006",
+    "instruction": "R6去装卸区",
+    "expected_tool": "schedule_robots",
+    "check_failure": true,
+    "category": "invalid_entity"
+  },
+  {
+    "id": "edge-007",
+    "instruction": "R1去一个不存在的位置",
+    "expected_tool": "schedule_robots",
+    "check_failure": true,
+    "category": "invalid_entity"
+  },
+  {
+    "id": "edge-008",
+    "instruction": "把R1移到",
+    "expected_tool": "move_robot",
+    "check_params": {
+      "robot_id": {"expect": "R1"}
+    },
+    "expected_partial_args": true,
+    "category": "incomplete_params"
+  },
+  {
+    "id": "edge-009",
+    "instruction": "关闭",
+    "expected_tool": "modify_map",
+    "expected_partial_args": true,
+    "category": "incomplete_params"
+  },
+  {
+    "id": "edge-010",
+    "instruction": "删除",
+    "expected_tool": "delete_cron_job",
+    "expected_partial_args": true,
+    "category": "incomplete_params"
+  },
+  {
+    "id": "edge-011",
+    "instruction": "R1 R2 R3",
+    "expected_tool": "schedule_robots",
+    "expected_partial_args": true,
+    "category": "ambiguous"
+  },
+  {
+    "id": "edge-012",
+    "instruction": "   ",
+    "expected_tool": "answer_question",
+    "expected_behavior": "reject_or_ask",
+    "category": "empty_input"
+  },
+  {
+    "id": "edge-013",
+    "instruction": "！@#￥%……&",
+    "expected_tool": "answer_question",
+    "expected_behavior": "reject_or_ask",
+    "category": "gibberish"
+  },
+  {
+    "id": "edge-014",
+    "instruction": "卸载完成",
+    "expected_tool": "confirm_cargo_done",
+    "category": "fuzzy_match"
+  },
+  {
+    "id": "edge-015",
+    "instruction": "查一下现在定时任务的情况",
+    "expected_tool": "list_cron_jobs",
+    "category": "fuzzy_match"
+  }
+]
