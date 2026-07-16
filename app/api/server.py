@@ -41,6 +41,7 @@ from app.api.schemas import (
     CronJobOutput,
     CronJobToggle,
 )
+from app.tools import ToolManager, ToolRegistry
 
 # ── App setup ───────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ _workflow: Optional[Workflow] = None
 _cron_manager = None
 _pending_confirm = {}  # 确认存储: {session_key: {"action": "delete_all", "expires": timestamp}}
 _memory_store: Optional[Any] = None  # HybridMemoryStore 实例（延迟初始化）
+_tool_manager: Optional[ToolManager] = None  # 工具调用管理器（延迟初始化）
 
 
 def get_memory_store() -> Optional[Any]:
@@ -113,6 +115,155 @@ def get_memory_store() -> Optional[Any]:
     )
     print(f"[memory] Store initialized (mode={mode}, path={data_dir})")
     return _memory_store
+
+
+def get_tool_manager() -> Optional[ToolManager]:
+    """Get or create the ToolManager instance.
+
+    Initializes ToolManager with all registered handlers and builds
+    warehouse context from the current workflow.
+    """
+    global _tool_manager
+    if _tool_manager is not None:
+        return _tool_manager
+
+    wf = get_workflow()
+    if wf is None or wf.warehouse_map is None or wf.parser is None:
+        return None
+
+    # Read LLM config
+    acp = str(API_CONFIG_PATH) if API_CONFIG_PATH.exists() else None
+    api_config = {"deepseek_api_key": "", "model": "deepseek-chat"}
+    if acp:
+        try:
+            with open(acp, "r", encoding="utf-8") as f:
+                api_config = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # Build LLM client (reuse parser's client)
+    llm_client = wf.parser.client
+    model = wf.parser.model
+
+    # Build registry and manager
+    registry = ToolRegistry()
+
+    # Define handler wrappers for server.py functions
+    def workflow_fn_structured(structured_dict: dict) -> object:
+        """Wrap Workflow.run_structured for the tool handler."""
+        if not structured_dict.get("tasks"):
+            # If LLM gave us raw tasks, wrap them
+            return wf.run_structured(structured_dict)
+        return wf.run_structured(structured_dict)
+
+    def answer_fn_impl(question: str) -> str:
+        """Answer a warehouse question."""
+        import asyncio
+        ctx = [f"仓库 {wf.warehouse_map.width}×{wf.warehouse_map.height}"]
+        for loc in wf.warehouse_map.locations:
+            ctx.append(f"{loc.name}({loc.type}): 设施{loc.facility_cells} 入口{loc.entry_cells}")
+        for rid in wf.robot_registry.get_robot_ids():
+            pos = wf.robot_registry.get_position(rid)
+            ctx.append(f"机器人{rid}在{list(pos)}")
+        try:
+            resp = llm_client.chat.completions.create(
+                model=model,
+                messages=[{"role": "system", "content": f"你是仓储助手，简洁回答。\n" + "\n".join(ctx)},
+                          {"role": "user", "content": question}],
+                temperature=0.3, max_tokens=300,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            return f"❌ 回答失败: {e}"
+
+    def robot_move_fn_impl(robot_id: str, position: list) -> str:
+        """Move a robot to a position."""
+        import re
+        from pathlib import Path
+        x, y = int(position[0]), int(position[1])
+        rp = CONFIGS_DIR / "warehouse_runtime.json"
+        runtime = json.loads(rp.read_text(encoding="utf-8"))
+        for r in runtime.get("robots", []):
+            if r["robot_id"] == robot_id:
+                r["position"] = [x, y]
+                rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+                reset_workflow()
+                return f"🤖 {robot_id} 已移动到 ({x},{y})"
+        return f"❌ 未找到{robot_id}"
+
+    def map_modify_fn_impl(action: str, corridor_id: str) -> str:
+        """Close or open a corridor."""
+        from pathlib import Path
+        rp = CONFIGS_DIR / "warehouse_runtime.json"
+        runtime = json.loads(rp.read_text(encoding="utf-8"))
+        if action == "close":
+            runtime.setdefault("active_blockages", []).append({
+                "blockage_id": f"tool_{corridor_id}", "target_type": "corridor",
+                "target_id": corridor_id, "start_time": 0, "reason": "工具调用",
+            })
+            rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+            reset_workflow()
+            return f"🔒 已封闭「{corridor_id}」"
+        elif action == "open":
+            runtime["active_blockages"] = [
+                b for b in runtime.get("active_blockages", [])
+                if b.get("target_id") != corridor_id
+            ]
+            rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+            reset_workflow()
+            return f"🔓 已开放「{corridor_id}」"
+        return f"❌ 不支持: {action}"
+
+    def cargo_done_fn_impl(robot_id: str) -> str:
+        """Mark cargo as done."""
+        results = []
+        waiting = get_waiting_robots()
+        for r in waiting:
+            mark_robot_idle(r["robot_id"])
+            results.append(f"✅ {r['robot_id']} 卸货完成")
+        if not results:
+            busy = get_busy_robots()
+            for r in busy:
+                mark_robot_idle(r["robot_id"])
+                results.append(f"✅ {r['robot_id']} 卸货完成")
+        if not results:
+            results.append("⚠️ 没有正在执行任务的机器人")
+        return "\n".join(results)
+
+    # Build location/corridor/robot info
+    wmap = wf.warehouse_map
+    location_ids = [loc.location_id for loc in wmap.locations]
+    corridor_ids = [c.corridor_id for c in wmap.corridors]
+    robot_ids = wf.robot_registry.get_robot_ids()
+    robots_with_pos = [(rid, wf.robot_registry.get_position(rid)) for rid in robot_ids]
+
+    # Initialize ToolManager
+    _tool_manager = ToolManager(
+        registry=registry,
+        llm_client=llm_client,
+        model=model,
+        workflow_fn=workflow_fn_structured,
+        cron_manager=_cron_manager,
+        answer_fn=answer_fn_impl,
+        robot_move_fn=robot_move_fn_impl,
+        map_modify_fn=map_modify_fn_impl,
+        cargo_done_fn=cargo_done_fn_impl,
+        temperature=wf.parser.temperature,
+        max_tokens=wf.parser.max_tokens,
+    )
+
+    # Build warehouse context
+    _tool_manager.build_warehouse_context(
+        width=wmap.width,
+        height=wmap.height,
+        locations=wmap.locations,
+        corridors=wmap.corridors,
+        robots=robots_with_pos,
+    )
+    _tool_manager.register_handlers()
+
+    print(f"[tool] ToolManager initialized ({len(registry.get_all_names())} tools)")
+    return _tool_manager
 
 
 def get_workflow(
@@ -278,6 +429,8 @@ def _start_weixin():
     wf_instance = get_workflow()
     if wf_instance and wf_instance.parser:
         handler.classify_fn = wf_instance.parser.classify_intent
+        # 工具调用管理器（优先使用）
+        handler.tool_manager = get_tool_manager()
         # 问答回调
         async def answer_fn(text):
             return await _answer_question(text)
@@ -474,84 +627,125 @@ class ChatRequest(BaseModel):
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    """通用对话端点：LLM 意图分类 + 路由。
+    """通用对话端点：工具调用（LLM 自主选择工具）替代意图分类 + 路由。
 
-    接收任意自然语言，LLM 判断意图后执行相应操作：
-    - schedule → 执行调度
-    - cron_list → 返回定时任务列表
-    - cron_create → 创建定时任务
-    - cron_delete → 删除定时任务
-    - cron_toggle → 切换定时任务状态
+    LLM 收到全部工具定义，自主选择调用哪个工具。
+    取代原来的 classify_intent + 12 路 if/elif 模式。
     """
     wf = get_workflow()
     text = request.message.strip()
-    global _cron_manager
+    global _cron_manager, _tool_manager
 
-    # Step 1: LLM 意图分类
-    intent_info = {"intent": "schedule"}
-    confirm_needed = None
-    if wf and wf.parser:
-        try:
-            intent_info = wf.parser.classify_intent(text)
-        except Exception as e:
-            intent_info = {"intent": "schedule"}
-
-    intent = intent_info.get("intent", "schedule")
     reply_text = ""
     schedule_result = None
     image_url = None
     confirm_needed = None
+    intent = ""
 
-    # ── 根据 LLM 意图分类执行 ──────────────────────────────────────
-    if intent == "schedule":
+    # ── 主路径：工具调用 ──────────────────────────────────────────────
+    tm = get_tool_manager()
+    if tm is not None:
         try:
-            state = wf.run(text)
-            schedule_result = _state_to_response(state)
-            reply_text = _format_schedule_md(state)
-            image_url = _generate_path_image(state, text)
-            # 更新位置
-            _update_robot_positions(state)
+            result = tm.process(text)
+            intent = result.get("tool_name", "")
+
+            if result["success"]:
+                # 解析返回的数据
+                data = result.get("data", "")
+                if isinstance(data, dict):
+                    # schedule_robots 返回了结构化数据（含路径）
+                    if "tasks" in data:
+                        reply_text = data.get("summary", str(data))
+                        schedule_result = data
+        # 从数据中构建路径用于图片生成
+                        try:
+                            image_url = _build_image_from_tool_result(data, text)
+                            # 更新机器人位置到目标点
+                            _apply_goal_positions(data)
+                        except Exception:
+                            pass
+                    elif "batch_status" in data:
+                        reply_text = data.get("summary", str(data))
+                        schedule_result = data
+                    elif "summary" in data or "request_id" in data:
+                        reply_text = data.get("summary", str(data))
+                    else:
+                        reply_text = str(data)
+                else:
+                    reply_text = str(data)
+            else:
+                error = result.get("error", "Unknown error")
+                reply_text = f"❌ {error}"
+
+            llm_time = result.get("llm_time_ms", 0)
+            print(f"[chat] ToolManager: {result['tool_name']} ({llm_time:.0f}ms)")
+
         except Exception as e:
-            reply_text = f"❌ 调度失败: {e}"
+            print(f"[chat] ToolManager failed: {e}")
+            # 降级到旧路径
+            intent = "fallback"
 
-    elif intent == "cron_list":
-        global _cron_manager
-        if _cron_manager:
-            jobs = _cron_manager.list_jobs()
-            reply_text = _format_cron_list_md(jobs)
-        else:
-            reply_text = "❌ 定时任务功能未启用"
+    # ── 降级路径：ToolManager 不可用时，使用旧的 classify_intent + if/elif ──
+    if tm is None or intent == "fallback":
+        # Step 1: LLM 意图分类
+        intent_info = {"intent": "schedule"}
+        if wf and wf.parser:
+            try:
+                intent_info = wf.parser.classify_intent(text)
+            except Exception:
+                intent_info = {"intent": "schedule"}
 
-    elif intent == "cron_create":
-        reply_text = _do_cron_create(intent_info)
+        intent = intent_info.get("intent", "schedule")
+        schedule_result = None
+        confirm_needed = None
 
-    elif intent == "cron_delete":
-        reply_text = _do_cron_delete(intent_info)
+        # ── 根据 LLM 意图分类执行 ──────────────────────────────────────
+        if intent == "schedule":
+            try:
+                state = wf.run(text)
+                schedule_result = _state_to_response(state)
+                reply_text = _format_schedule_md(state)
+                image_url = _generate_path_image(state, text)
+                _update_robot_positions(state)
+            except Exception as e:
+                reply_text = f"❌ 调度失败: {e}"
 
-    elif intent == "cron_delete_all":
-        reply_text, confirm_needed = _handle_delete_all(intent_info)
+        elif intent == "cron_list":
+            if _cron_manager:
+                jobs = _cron_manager.list_jobs()
+                reply_text = _format_cron_list_md(jobs)
+            else:
+                reply_text = "❌ 定时任务功能未启用"
 
-    elif intent == "map_modify":
-        reply_text, confirm_needed = _handle_map_modify(intent_info)
+        elif intent == "cron_create":
+            reply_text = _do_cron_create(intent_info)
 
-    elif intent == "robot_move":
-        reply_text = _handle_robot_move(intent_info)
+        elif intent == "cron_delete":
+            reply_text = _do_cron_delete(intent_info)
 
-    elif intent == "cron_toggle":
-        reply_text = _do_cron_toggle(intent_info)
+        elif intent == "cron_delete_all":
+            reply_text, confirm_needed = _handle_delete_all(intent_info)
 
-    elif intent == "show_map":
-        reply_text = "🗺️ 当前地图已渲染，请查看左侧画布"
+        elif intent == "map_modify":
+            reply_text, confirm_needed = _handle_map_modify(intent_info)
 
-    elif intent == "general_qa":
-        reply_text = await _answer_question(text)
+        elif intent == "robot_move":
+            reply_text = _handle_robot_move(intent_info)
 
-    else:
-        # 未知意图 → 尝试问答
-        try:
+        elif intent == "cron_toggle":
+            reply_text = _do_cron_toggle(intent_info)
+
+        elif intent == "show_map":
+            reply_text = "🗺️ 当前地图已渲染，请查看左侧画布"
+
+        elif intent == "general_qa":
             reply_text = await _answer_question(text)
-        except Exception:
-            reply_text = "⚠️ 无法理解，请尝试：调度指令 / 查看定时任务 / 询问仓库信息"
+
+        else:
+            try:
+                reply_text = await _answer_question(text)
+            except Exception:
+                reply_text = "⚠️ 无法理解，请尝试：调度指令 / 查看定时任务 / 询问仓库信息"
 
     return {
         "intent": intent,
@@ -575,7 +769,9 @@ def _auto_select_robot(text: str, wf) -> str:
 
 
 def _update_robot_positions(state) -> None:
-    if state.status.value not in ("succeeded", "partially_succeeded"): return
+    """调度后将机器人位置更新到路径终点（实际目标位置）。"""
+    if state.status.value not in ("succeeded", "partially_succeeded"):
+        return
     rp = CONFIGS_DIR / "warehouse_runtime.json"
     try:
         runtime = json.loads(rp.read_text(encoding="utf-8"))
@@ -587,7 +783,73 @@ def _update_robot_positions(state) -> None:
                         r["position"] = [last.x, last.y]
         rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
         reset_workflow()
-    except Exception: pass
+    except Exception:
+        pass
+
+
+def _apply_goal_positions(data: dict) -> None:
+    """从 ToolManager 返回的任务数据将机器人位置更新到路径终点。"""
+    tasks = data.get("tasks", [])
+    if not tasks:
+        return
+    rp = CONFIGS_DIR / "warehouse_runtime.json"
+    try:
+        runtime = json.loads(rp.read_text(encoding="utf-8"))
+        for t in tasks:
+            if t.get("success") and t.get("path"):
+                last_pos = t["path"][-1]
+                for r in runtime.get("robots", []):
+                    if r["robot_id"] == t["robot_id"]:
+                        r["position"] = [last_pos["x"], last_pos["y"]]
+        rp.write_text(json.dumps(runtime, ensure_ascii=False, indent=2), encoding="utf-8")
+        reset_workflow()
+    except Exception:
+        pass
+
+
+def _build_image_from_tool_result(data: dict, instruction: str) -> str:
+    """从 ToolManager 返回的任务数据生成路径图片，无需重新调用 LLM。"""
+    from app.domain.path_models import PathPlanResult, TimedPosition
+    import matplotlib
+    matplotlib.use("Agg")
+    from app.visualization.renderer import render_paths
+    import matplotlib.pyplot as plt
+
+    tasks = data.get("tasks", [])
+    if not tasks:
+        return None
+
+    paths = {}
+    for t in tasks:
+        if t.get("success") and t.get("path"):
+            robot_id = t["robot_id"]
+            path_pts = [TimedPosition(x=p["x"], y=p["y"], time=p["time"]) for p in t["path"]]
+            paths[robot_id] = PathPlanResult(success=True, path=path_pts, cost=len(path_pts))
+
+    if not paths:
+        return None
+
+    wf = get_workflow()
+    if not wf or not wf.warehouse_map:
+        return None
+
+    os.makedirs("configs/media", exist_ok=True)
+    from datetime import datetime
+    ts = datetime.now().strftime("%H%M%S")
+    request_id = data.get("request_id", "tool")
+    filename = f"{ts}_{request_id}.png"
+    filepath = f"configs/media/{filename}"
+
+    try:
+        render_paths(wf.warehouse_map, paths, title="Robot Paths", block=False)
+        plt.savefig(filepath, dpi=150, bbox_inches="tight")
+        plt.close()
+        return f"/media/{filename}"
+    except Exception as e:
+        print(f"[chat] Image generation from tool result failed: {e}")
+        return None
+
+
 
 
 def _handle_cargo_done(text: str) -> str:

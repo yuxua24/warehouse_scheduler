@@ -182,9 +182,24 @@ class Workflow:
         # Build TaskBatch from JSON
         task_batch = TaskBatch()
         for t_raw in tasks_json.get("tasks", []):
+            # Handle missing start: use robot registry position
+            robot_id = t_raw["robot_id"]
+            start_raw = t_raw.get("start")
+            if start_raw is None:
+                # Use runtime position
+                pos = self.robot_registry.get_position(robot_id)
+                if pos is None:
+                    task_batch.parse_errors.append(
+                        f"Robot {robot_id}: unknown and no start specified"
+                    )
+                    continue
+                start = pos
+            else:
+                start = tuple(start_raw)
+
             task = RobotTask(
-                robot_id=t_raw["robot_id"],
-                start=tuple(t_raw["start"]),
+                robot_id=robot_id,
+                start=start,
                 goal_location_id=t_raw["goal_location_id"],
                 priority=t_raw.get("priority", 1),
             )
@@ -214,6 +229,16 @@ class Workflow:
                             source="user_instruction",
                         )
                     )
+
+        # Check for parse errors (e.g., missing start positions)
+        if task_batch.parse_errors:
+            return PlanningState(
+                request_id=request_id,
+                original_instruction="",
+                status=BatchStatus.INFEASIBLE,
+                failure_reason="; ".join(task_batch.parse_errors),
+                errors=list(task_batch.parse_errors),
+            )
 
         # For structured mode, we have two options:
         # 1) Use a separate graph that starts at validate_and_resolve_goals

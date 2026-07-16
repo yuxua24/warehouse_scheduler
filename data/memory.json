@@ -75,5 +75,467 @@
       "retry_count": 1
     },
     "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:16:47.304870",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "loading_dock_north",
+        "start": [
+          10,
+          1
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "shelf_B_pickup",
+        "start": [
+          8,
+          3
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 2,
+      "planned_task_count": 2,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 29.069900512695312,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:16:48.742898",
+    "instruction": "R1前往装卸区，R2前往货架B",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "loading_dock_north",
+        "start": [
+          10,
+          1
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "shelf_B_pickup",
+        "start": [
+          8,
+          3
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 2,
+      "planned_task_count": 2,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 1436.776876449585,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:17:06.284822",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "charging_station",
+        "start": [
+          10,
+          1
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "packing_station",
+        "start": [
+          8,
+          3
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R3",
+        "goal": "maintenance_zone",
+        "start": [
+          11,
+          0
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 3,
+      "planned_task_count": 3,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 7.467031478881836,
+      "replanning_triggered": true,
+      "retry_count": 1
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:17:07.752625",
+    "instruction": "R1去充电区，R2去打包站，R3去维护区",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "charging_station",
+        "start": [
+          10,
+          1
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "packing_station",
+        "start": [
+          8,
+          3
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R3",
+        "goal": "maintenance_zone",
+        "start": [
+          11,
+          0
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 3,
+      "planned_task_count": 3,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 1463.8609886169434,
+      "replanning_triggered": true,
+      "retry_count": 1
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:20:21.334619",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "loading_dock_north",
+        "start": [
+          17,
+          18
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "shelf_B_pickup",
+        "start": [
+          8,
+          5
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 2,
+      "planned_task_count": 2,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 28.998851776123047,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:20:45.992701",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "charging_station",
+        "start": [
+          17,
+          18
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "packing_station",
+        "start": [
+          8,
+          5
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R3",
+        "goal": "maintenance_zone",
+        "start": [
+          1,
+          18
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 3,
+      "planned_task_count": 3,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 4.459857940673828,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:21:27.257820",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "loading_dock_north",
+        "start": [
+          17,
+          18
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "shelf_A_pickup",
+        "start": [
+          8,
+          5
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R3",
+        "goal": "shelf_B_pickup",
+        "start": [
+          1,
+          18
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 3,
+      "planned_task_count": 3,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 13.000965118408203,
+      "replanning_triggered": true,
+      "retry_count": 1
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:22:00.698430",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "charging_station",
+        "start": [
+          17,
+          18
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "packing_station",
+        "start": [
+          8,
+          5
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R3",
+        "goal": "maintenance_zone",
+        "start": [
+          1,
+          18
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 3,
+      "planned_task_count": 3,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 2.919912338256836,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:24:51.438852",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "loading_dock_north",
+        "start": [
+          17,
+          18
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "shelf_B_pickup",
+        "start": [
+          8,
+          5
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 2,
+      "planned_task_count": 2,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 28.04088592529297,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T12:26:59.468022",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "loading_dock_north",
+        "start": [
+          17,
+          18
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "shelf_B_pickup",
+        "start": [
+          8,
+          5
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 2,
+      "planned_task_count": 2,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 29.80780601501465,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T14:30:14.857081",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "loading_dock_north",
+        "start": [
+          10,
+          1
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "shelf_B_pickup",
+        "start": [
+          8,
+          3
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 2,
+      "planned_task_count": 2,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 26.6721248626709,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
+  },
+  {
+    "timestamp": "2026-07-16T14:30:37.360165",
+    "instruction": "",
+    "status": "succeeded",
+    "tasks": [
+      {
+        "robot_id": "R1",
+        "goal": "charging_station",
+        "start": [
+          10,
+          1
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R2",
+        "goal": "packing_station",
+        "start": [
+          8,
+          3
+        ],
+        "success": true
+      },
+      {
+        "robot_id": "R3",
+        "goal": "maintenance_zone",
+        "start": [
+          1,
+          18
+        ],
+        "success": true
+      }
+    ],
+    "metrics": {
+      "total_task_count": 3,
+      "planned_task_count": 3,
+      "planning_success_rate": 1.0,
+      "total_planning_time_ms": 6.271123886108398,
+      "replanning_triggered": false,
+      "retry_count": 0
+    },
+    "failure_reason": ""
   }
 ]

@@ -95,7 +95,8 @@ class MessageHandler:
         self.location_names = location_names or {}
         self.media_generator = None  # 由外部设置
         self.cron_manager = None     # 由外部设置
-        self.classify_fn = None      # fn(text) -> dict, LLM 意图分类
+        self.classify_fn = None      # fn(text) -> dict, LLM 意图分类（旧路径）
+        self.tool_manager = None     # ToolManager 实例（新路径，优先使用）
         self.answer_fn = None        # fn(text) -> str, LLM 问答
 
     async def handle(self, msg: Dict[str, Any]) -> None:
@@ -150,14 +151,9 @@ class MessageHandler:
         if not content:
             return  # 非文本或无内容
 
-        # 4. 去重
+        # 4. 去重（仅基于 message_id，避免用户重复发送相同文本被误判）
         if content and self.deduplicator.is_duplicate(
             MessageDeduplicator.make_message_key(user_id, msg_id, content)
-        ):
-            return
-
-        if content and self.deduplicator.is_duplicate(
-            MessageDeduplicator.make_content_key(user_id, content)
         ):
             return
 
@@ -185,7 +181,7 @@ class MessageHandler:
             await self._send_reply(user_id, HELP_TEXT)
             return
 
-        # === LLM 意图分类 + 路由 ===
+        # === 工具调用 或 LLM 意图分类 + 路由 ===
         intent_info = {"intent": "schedule"}
 
         # 快速路径：以 "定时" 开头 → 直接走 cron 命令（不调 LLM）
@@ -194,7 +190,38 @@ class MessageHandler:
             await self._send_reply(user_id, reply)
             return
 
-        # 主路径：LLM 意图分类
+        # 主路径 1（新）：ToolManager 工具调用
+        if self.tool_manager is not None:
+            try:
+                result = self.tool_manager.process(text)
+                if result["success"]:
+                    data = result.get("data", "")
+                    if isinstance(data, dict):
+                        reply = data.get("summary", str(data))
+                    else:
+                        reply = str(data)
+                else:
+                    reply = f"❌ {result.get('error', 'Unknown error')}"
+                print(f"[weixin] ToolManager: {result.get('tool_name')} ({result.get('llm_time_ms', 0):.0f}ms)")
+                await self._send_reply(user_id, reply)
+                # 调度成功时生成图片
+                if result.get("tool_name") == "schedule_robots" and self.media_generator:
+                    try:
+                        state = self.workflow_fn(text)
+                        png_path, _gif_path = self.media_generator(state)
+                        if png_path and Path(png_path).exists():
+                            await self.client.send_image(
+                                to_user=user_id, file_path=str(png_path),
+                                context_token=context_token,
+                            )
+                    except Exception:
+                        pass
+                return
+            except Exception as e:
+                print(f"[weixin] ToolManager failed: {e}")
+                # 降级到旧路径
+
+        # 主路径 2（旧）：LLM 意图分类 + if/elif
         if self.classify_fn:
             try:
                 intent_info = self.classify_fn(text)

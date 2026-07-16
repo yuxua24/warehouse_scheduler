@@ -4,8 +4,8 @@
     {
       "robot_id": "R1",
       "position": [
-        10,
-        1
+        17,
+        18
       ],
       "status": "waiting",
       "assigned_task": {
@@ -19,7 +19,7 @@
       "robot_id": "R2",
       "position": [
         8,
-        3
+        5
       ],
       "status": "waiting",
       "assigned_task": null,
@@ -28,8 +28,8 @@
     {
       "robot_id": "R3",
       "position": [
-        11,
-        0
+        1,
+        18
       ],
       "status": "waiting",
       "assigned_task": null,
