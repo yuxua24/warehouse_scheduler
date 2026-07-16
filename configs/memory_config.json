@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "mode": "json_only",
+  "data_dir": "data",
+  "description": "json_only=仅记录(方式3,零开销); hybrid=智能检索注入(方式2,+~200tokens)"
+}

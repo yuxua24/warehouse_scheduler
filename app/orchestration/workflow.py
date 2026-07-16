@@ -3,6 +3,10 @@
 The Workflow class now wraps a compiled StateGraph instead of directly
 invoking SchedulerAgent. The external API (run / run_structured → PlanningState)
 remains backward-compatible.
+
+Supports optional HybridMemoryStore for cross-session memory:
+  - json_only mode (way 3): records completed schedules to JSON, zero LLM overhead
+  - hybrid mode (way 2):      records + retrieves relevant history for LLM injection
 """
 
 import json
@@ -29,6 +33,8 @@ from app.agents.task_parser_agent import TaskParserAgent
 from app.agents.replanning_agent import ReplanningAgent
 from app.orchestration.replanning_policy import ReplanningPolicy
 from app.orchestration.graph_builder import build_graph
+from app.memory.hybrid_store import HybridMemoryStore
+from app.memory.user_profile import UserProfile
 
 
 class Workflow:
@@ -40,6 +46,7 @@ class Workflow:
         runtime_path: str = None,
         api_config_path: str = None,
         max_timestep: int = 200,
+        memory_store: Optional[HybridMemoryStore] = None,
     ):
         # Resolve default paths
         if map_path is None:
@@ -59,6 +66,8 @@ class Workflow:
         self.runtime_path = runtime_path
         self.api_config_path = api_config_path
         self.max_timestep = max_timestep
+        self.memory_store = memory_store
+        self.user_profile = UserProfile(memory_store) if memory_store else None
 
         # Load map
         self.map_loader = MapLoader(map_path)
@@ -119,6 +128,12 @@ class Workflow:
                 failure_reason="Graph not compiled",
             )
 
+        # ── 记忆系统：方式2 检索注入 ───────────────────────────────────────
+        if self.memory_store and self.parser:
+            memory_summary = self.memory_store.retrieve_for_injection(instruction)
+            if memory_summary:
+                self.parser.memory_context = memory_summary
+
         # Build initial GraphState
         blockages = list(self.robot_registry.get_blockages())
         initial_state: GraphState = {
@@ -139,7 +154,13 @@ class Workflow:
         total_time_ms = (time.time() - t0) * 1000
 
         # Convert graph result dict → PlanningState
-        return self._result_to_planning_state(result, total_time_ms)
+        state = self._result_to_planning_state(result, total_time_ms)
+
+        # ── 记忆系统：记录本次调度结果 ────────────────────────────────────
+        if self.memory_store:
+            self._record_to_memory(instruction, state)
+
+        return state
 
     def run_structured(self, tasks_json: dict) -> PlanningState:
         """Run with pre-structured tasks (bypass LLM parsing).
@@ -226,9 +247,54 @@ class Workflow:
         result = self._compiled_graph_no_parse.invoke(initial_state)
         total_time_ms = (time.time() - t0) * 1000
 
-        return self._result_to_planning_state(result, total_time_ms)
+        state = self._result_to_planning_state(result, total_time_ms)
+
+        # ── 记忆系统：记录本次调度结果 ────────────────────────────────────
+        if self.memory_store:
+            # Use the original instruction or a placeholder for structured input
+            orig_instruction = tasks_json.get("original_instruction", "")
+            self._record_to_memory(orig_instruction, state)
+
+        return state
 
     # ── Internal helpers ────────────────────────────────────────────────────
+
+    def _record_to_memory(self, instruction: str, state: PlanningState) -> None:
+        """记录调度结果到记忆系统（方式2/3的写入路径）。
+
+        提取结构化信息（而非原始 PlanningState）以节省存储空间。
+        """
+        tasks = []
+        for tr in state.task_results:
+            tasks.append({
+                "robot_id": tr.robot_id,
+                "goal": tr.task.goal_location_id if tr.task else "",
+                "start": list(tr.task.start) if tr.task and tr.task.start else [],
+                "success": tr.success,
+            })
+
+        metrics_dict = None
+        if state.metrics:
+            metrics_dict = {
+                "total_task_count": state.metrics.total_task_count,
+                "planned_task_count": state.metrics.planned_task_count,
+                "planning_success_rate": state.metrics.planning_success_rate,
+                "total_planning_time_ms": state.metrics.total_planning_time_ms,
+                "replanning_triggered": state.metrics.replanning_triggered,
+                "retry_count": state.metrics.retry_count,
+            }
+
+        self.memory_store.record(
+            instruction=instruction,
+            status=state.status.value,
+            tasks=tasks,
+            metrics=metrics_dict,
+            failure_reason=state.failure_reason or "",
+        )
+
+        # 更新用户偏好模型
+        if self.user_profile:
+            self.user_profile.load()
 
     def _result_to_planning_state(
         self,

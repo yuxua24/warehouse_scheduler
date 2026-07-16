@@ -18,8 +18,8 @@
     {
       "robot_id": "R2",
       "position": [
-        9,
-        1
+        8,
+        3
       ],
       "status": "waiting",
       "assigned_task": null,

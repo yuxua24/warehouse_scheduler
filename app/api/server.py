@@ -75,6 +75,44 @@ FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
 _workflow: Optional[Workflow] = None
 _cron_manager = None
 _pending_confirm = {}  # 确认存储: {session_key: {"action": "delete_all", "expires": timestamp}}
+_memory_store: Optional[Any] = None  # HybridMemoryStore 实例（延迟初始化）
+
+
+def get_memory_store() -> Optional[Any]:
+    """Get or create the HybridMemoryStore instance.
+
+    Uses data/memory.json as JSON store and data/memory.db as SQLite store.
+    Returns None if memory is not configured (safe fallback).
+    """
+    global _memory_store
+    if _memory_store is not None:
+        return _memory_store
+
+    # Check if memory is enabled via config
+    memory_config_path = CONFIGS_DIR / "memory_config.json"
+    if not memory_config_path.exists():
+        return None  # No config → memory disabled
+
+    try:
+        config = json.loads(memory_config_path.read_text(encoding="utf-8"))
+        if not config.get("enabled", False):
+            return None
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    from app.memory.hybrid_store import HybridMemoryStore
+
+    mode = config.get("mode", "json_only")
+    data_dir = config.get("data_dir", str(BASE_DIR / "data"))
+
+    _memory_store = HybridMemoryStore(
+        json_path=os.path.join(data_dir, "memory.json"),
+        db_path=os.path.join(data_dir, "memory.db"),
+        mode=mode,
+        auto_sync=True,
+    )
+    print(f"[memory] Store initialized (mode={mode}, path={data_dir})")
+    return _memory_store
 
 
 def get_workflow(
@@ -89,11 +127,13 @@ def get_workflow(
     acp = str(API_CONFIG_PATH) if API_CONFIG_PATH.exists() else None
 
     if _workflow is None or _workflow.map_path != mp or _workflow.runtime_path != rp:
+        memory_store = get_memory_store()
         _workflow = Workflow(
             map_path=mp,
             runtime_path=rp,
             api_config_path=acp,
             max_timestep=max_timestep,
+            memory_store=memory_store,
         )
     return _workflow
 
